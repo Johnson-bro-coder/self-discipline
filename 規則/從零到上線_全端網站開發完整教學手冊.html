@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <title>從零到全端上線：現代 Web 應用開發完整教學手冊</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap');
+
+    @page {
+      size: A4;
+      margin: 20mm 16mm 20mm 16mm;
+      @bottom-center {
+        content: counter(page);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 9pt;
+        color: #888;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    body {
+      font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      color: #1a1a1f;
+      background-color: #ffffff;
+      line-height: 1.65;
+      font-size: 10pt;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* 封面與大標題 */
+    .cover-header {
+      border-bottom: 3px solid #000000;
+      padding-bottom: 18px;
+      margin-bottom: 24px;
+    }
+
+    .badge-pill {
+      display: inline-block;
+      background-color: #000000;
+      color: #ffffff;
+      font-size: 8pt;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 999px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: 22pt;
+      font-weight: 900;
+      color: #000000;
+      margin: 6px 0 10px 0;
+      letter-spacing: -0.5px;
+      line-height: 1.25;
+    }
+
+    .subtitle {
+      font-size: 11pt;
+      color: #555560;
+      margin: 0;
+      font-weight: 500;
+    }
+
+    .meta-bar {
+      display: flex;
+      justify-content: space-between;
+      font-size: 8.5pt;
+      color: #777780;
+      margin-top: 12px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* 章節標題 */
+    h2 {
+      font-size: 14pt;
+      font-weight: 800;
+      color: #050508;
+      border-left: 4px solid #000000;
+      padding-left: 10px;
+      margin-top: 26px;
+      margin-bottom: 12px;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #22222b;
+      margin-top: 16px;
+      margin-bottom: 8px;
+      page-break-after: avoid;
+    }
+
+    p {
+      margin: 0 0 10px 0;
+      text-align: justify;
+    }
+
+    /* 提示卡片與呼應區塊 */
+    .callout {
+      background-color: #f6f7f9;
+      border: 1px solid #e1e4ea;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin: 12px 0;
+      page-break-inside: avoid;
+    }
+
+    .callout-analogy {
+      background-color: #fdfbf7;
+      border-left: 4px solid #d97706;
+      border-top: 1px solid #fef3c7;
+      border-right: 1px solid #fef3c7;
+      border-bottom: 1px solid #fef3c7;
+    }
+
+    .callout-tech {
+      background-color: #f8fafc;
+      border-left: 4px solid #0284c7;
+      border-top: 1px solid #e2e8f0;
+      border-right: 1px solid #e2e8f0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .callout-pitfall {
+      background-color: #fef2f2;
+      border-left: 4px solid #dc2626;
+      border-top: 1px solid #fee2e2;
+      border-right: 1px solid #fee2e2;
+      border-bottom: 1px solid #fee2e2;
+    }
+
+    .callout-title {
+      font-weight: 700;
+      font-size: 9.5pt;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* 程式碼與命令 */
+    pre, code {
+      font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
+    }
+
+    code {
+      background-color: #f1f3f6;
+      color: #0f172a;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 8.5pt;
+      border: 1px solid #e2e8f0;
+    }
+
+    pre {
+      background-color: #0f1117;
+      color: #e2e8f0;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 8pt;
+      line-height: 1.45;
+      overflow-x: auto;
+      margin: 10px 0;
+      page-break-inside: avoid;
+    }
+
+    /* 表格樣式 */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 8.5pt;
+      page-break-inside: avoid;
+    }
+
+    th, td {
+      border: 1px solid #e2e8f0;
+      padding: 7px 10px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f8fafc;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    tr:nth-child(even) {
+      background-color: #fafbfc;
+    }
+
+    ul, ol {
+      margin: 0 0 10px 0;
+      padding-left: 20px;
+    }
+
+    li {
+      margin-bottom: 4px;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    /* 流程架構圖卡 */
+    .flow-card {
+      background: #fafafa;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8.5pt;
+      color: #334155;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 封面與前言 -->
+  <div class="cover-header">
+    <span class="badge-pill">大一新生零基礎實戰手冊</span>
+    <h1>從零到全端上線：現代 Web 應用開發完整教學手冊</h1>
+    <p class="subtitle">以「三人好友共學自律與公費金庫系統」為實例，解析現代網站的誕生全流程</p>
+    <div class="meta-bar">
+      <span>實戰專案：self-discipline</span>
+      <span>技術棧：React + Vite + Supabase + Cloudflare</span>
+      <span>日期：2026 年 9 月</span>
+    </div>
+  </div>
+
+  <div class="callout callout-analogy">
+    <div class="callout-title">💡 給大一新生的生動比喻：現代網站到底是什麼？</div>
+    <p>很多初學者以為寫網站就是單純寫 HTML，但一個完整上線的網路服務就像開一家「無人智慧咖啡館」：</p>
+    <ul>
+      <li><b>前端 (Frontend, React + Tailwind)</b>：店裡的裝潢、點餐觸控螢幕、菜單翻頁與按鈕回饋。你眼睛看得到、手指摸得到的所有東西。</li>
+      <li><b>後端與資料庫 (Backend, Supabase)</b>：後台的倉庫與帳本。記錄「誰點了什麼餐」、「倉庫還剩多少豆子」、「誰還沒付錢」，沒有它點餐機關機後資料就全忘光了。</li>
+      <li><b>雲端託管 (Deployment, Cloudflare Pages)</b>：將這家店蓋在全世界最高速的交通樞紐上，不管是誰從手機或電腦輸入網址，都能在一瞬間進店參觀。</li>
+    </ul>
+  </div>
+
+  <h2>目錄大綱</h2>
+  <table>
+    <tr><th>章節</th><th>核心內容</th><th>學習收穫</th></tr>
+    <tr><td><b>第 1 講：全端架構宏觀視野</b></td><td>前後端分離、資料庫的角色、邊緣網路概念</td><td>搞懂「按一個按鈕到網頁更新」中間經歷了什麼</td></tr>
+    <tr><td><b>第 2 講：本機開發環境搭建</b></td><td>Node.js、npm、Vite 現代化建置工具</td><td>學會在自己的電腦終端機啟動現代前端伺服器</td></tr>
+    <tr><td><b>第 3 講：前端核心架構開發</b></td><td>React 組件化、State 狀態驅動、iOS 液態玻璃設計</td><td>掌握如何將一個複雜的大介面拆解成小樂高積木</td></tr>
+    <tr><td><b>第 4 講：雲端資料庫與儲存庫</b></td><td>Supabase (PostgreSQL)、雲端照片儲存、pg_cron 排程</td><td>學會建立能自動跨日刷新、跨月結算的雲端後端</td></tr>
+    <tr><td><b>第 5 講：版本控制與協作</b></td><td>Git 時光機、.gitignore 避坑、SSH 密鑰設定</td><td>掌握工程師必備的代碼保存與 GitHub 倉庫管理</td></tr>
+    <tr><td><b>第 6 講：全球邊緣部署上線</b></td><td>Cloudflare Pages 連動、環境變數保密、防快取策略</td><td>把本地代碼變成全世界都能點開的真實網址</td></tr>
+    <tr><td><b>第 7 講：實戰避坑與排錯思維</b></td><td>建置指令錯誤排查、瀏覽器強快取解析、開發心法</td><td>培養面對 Bug 臨危不亂的資深工程師思維</td></tr>
+  </table>
+
+  <!-- 第 1 講 -->
+  <h2>第 1 講：全端架構宏觀視野</h2>
+  <p>在開始敲代碼前，讓我們先拉高視角，看懂這次專案的整體資訊流動架構：</p>
+
+  <div class="flow-card">
+    <b>[使用者的瀏覽器 (iPhone/Mac)]</b><br/>
+    ↓ (1) 透過 HTTPS 請求載入 HTML / JS / CSS (全球 CDN 加速)<br/>
+    <b>[Cloudflare Pages (全球邊緣節點)]</b><br/>
+    ↓ (2) 前端發動 API 查詢與資料修改 (以 supabase-js SDK 連線)<br/>
+    <b>[Supabase 雲端伺服器 (PostgreSQL)]</b><br/>
+    ├── <b>Database 表格</b>：記錄帳單、打卡狀態、罰金紀錄<br/>
+    ├── <b>Storage 儲存桶</b>：存放成員上傳的證明照片與大頭貼<br/>
+    └── <b>pg_cron 定時機器人</b>：每月 1 號 00:00 無人自動結算罰金
+  </div>
+
+  <p>過去傳統作法需要自己買一台 Linux 雲端主機（例如 AWS EC2），自己安裝作業系統、設定 Nginx、安裝 Node.js、設定防火牆。而現在 2026 年的現代全端開發流行 <b>Serverless (無伺服器架構)</b> 與 <b>BaaS (後端即服務)</b>，我們只需專注於寫好商業邏輯，基礎設施全交給頂尖雲端平台維運！</p>
+
+  <div class="page-break"></div>
+
+  <!-- 第 2 講 -->
+  <h2>第 2 講：本機開發環境搭建</h2>
+
+  <h3>1. 認識 Node.js 與 npm</h3>
+  <p>瀏覽器本來只能在網頁裡執行 JavaScript。但 <b>Node.js</b> 把它搬到了電腦本機，讓工程師可以在終端機裡執行 JS，甚至編譯代碼、安裝開源工具。而 <b>npm (Node Package Manager)</b> 就是世界最大的 JavaScript 開源軟體超級市場。</p>
+
+  <div class="callout callout-tech">
+    <div class="callout-title">🛠️ 必備指令清單</div>
+    <pre><code># 檢查本機 Node.js 與 npm 版本
+node -v    # 顯示如 v20.18.0
+npm -v     # 顯示如 10.8.2
+
+# 將自訂安裝路徑加入 macOS 終端機環境變數 (~/.zshrc)
+export PATH="$HOME/nodejs/bin:$PATH"</code></pre>
+  </div>
+
+  <h3>2. 使用 Vite 快速建立現代前端骨架</h3>
+  <p>過去前端工具（如 Webpack）啟動非常慢，改一行代碼要等好幾秒。而 <b>Vite</b> 利用了現代瀏覽器的原生 ES 模組支援，啟動速度只需 <b>0.2 秒</b>，熱更新（Hot Module Replacement）完全無感！</p>
+
+  <pre><code># 透過 Vite 腳本在當前目錄建立 React + TypeScript 專案
+npx -y create-vite@latest ./ --template react-ts
+
+# 安裝專案核心套件
+npm install @supabase/supabase-js framer-motion lucide-react canvas-confetti date-fns
+npm install -D tailwindcss postcss autoprefixer</code></pre>
+
+  <!-- 第 3 講 -->
+  <h2>第 3 講：前端核心架構與組件化設計</h2>
+
+  <h3>1. 為什麼一定要學 React 組件化 (Component-Based)？</h3>
+  <p>如果你用純 HTML 寫 10 個相似的任務卡片，你就得複製貼上 10 次整段 HTML，只要改一個按鈕顏色就得改 10 處！<br/>
+  而 React 就像<b>樂高積木</b>，我們把一個任務卡片封裝成 <code>TaskCard</code> 組件，傳入不同的資料（如標題、是否完成），它就自動渲染出不同的樣貌：</p>
+
+  <div class="callout callout-tech">
+    <div class="callout-title">🧩 本專案的前端組件劃分</div>
+    <ul>
+      <li><code>App.tsx</code>：總指揮官，管理全局狀態（當前登入者、任務清單、金庫金額）與定時器。</li>
+      <li><code>BottomNav.tsx</code>：底部 iOS 懸浮液態玻璃導覽列，支援滑動動態指示膠囊。</li>
+      <li><code>HomeTerminal.tsx</code>：個人自律終端，負責常駐每日必做、今日任務與明日預排。</li>
+      <li><code>TreasuryView.tsx</code>：公費金庫儀表板，支援在卡片上直接編輯夢想標竿與計算按日罰金。</li>
+      <li><code>WeeklyMatrix.tsx</code>：週一至週日里程碑排程矩陣。</li>
+      <li><code>SettingsView.tsx</code>：個人專屬設定，支援直接從本機上傳大頭貼。</li>
+    </ul>
+  </div>
+
+  <h3>2. 打造極致 iOS 液態玻璃 (Liquid Glass) 風格</h3>
+  <p>這次我們徹底捨棄俗氣的純黑純白，採用類似 Apple VisionOS / macOS 的黑白極簡磨砂玻璃：</p>
+  <ul>
+    <li><b>背景層</b>：採用極黑（<code>#000000</code>）搭配微弱的白色徑向光暈（<code>radial-gradient</code>）。</li>
+    <li><b>卡片層</b>：採用半透明微白（<code>bg-white/[0.03]</code>）搭配高強度背景模糊（<code>backdrop-blur-2xl</code>）與極細緻半透明邊框（<code>border-white/10</code>）。</li>
+    <li><b>懸浮 Dock</b>：底部導覽列做成圓角膠囊（<code>rounded-full</code>），浮在內容上方，搭配流暢的彈簧物理動畫（<code>framer-motion</code>）。</li>
+  </ul>
+
+  <div class="page-break"></div>
+
+  <!-- 第 4 講 -->
+  <h2>第 4 講：雲端資料庫與儲存庫 (Supabase BaaS)</h2>
+
+  <p>一個單純的前端網頁，重新整理之後輸入的資料就會全消失。為了讓資料永久留存並在三人之間同步，我們引入了 <b>Supabase</b>（基於最強關聯式資料庫 PostgreSQL 的雲端服務）。</p>
+
+  <h3>1. 資料庫綱要設計 (Schema Design)</h3>
+  <table>
+    <tr><th>資料表名稱</th><th>主要欄位</th><th>用途說明</th></tr>
+    <tr><td><code>profiles</code></td><td>id (UUID), username, avatar_url, total_paid_fine</td><td>存放 Johnson、nigga、shorty 的身分、頭像網址與歷史累積罰金</td></tr>
+    <tr><td><code>group_settings</code></td><td>goal_name, goal_amount, cover_photo</td><td>存放三人的共同夢想標竿（如古民家買房基金與金額）</td></tr>
+    <tr><td><code>daily_routines</code></td><td>id, user_id, title</td><td>常駐每日必做模板表（永久保存核心習慣項目，隨時可增修）</td></tr>
+    <tr><td><code>tasks</code></td><td>user_id, routine_id, title, category, is_completed, proof_url</td><td>每天具體的打卡實例（記錄照片佐證與豁免理由）</td></tr>
+    <tr><td><code>monthly_bills</code></td><td>user_id, billing_month, failed_tasks_count, fine_amount</td><td>每月 1 號由定時機器人結算產出的月結正式帳單</td></tr>
+  </table>
+
+  <h3>2. 雲端圖片儲存桶 (Supabase Storage)</h3>
+  <p>資料庫裡面只適合放文字與數字，<b>千萬不能直接把幾 MB 的照片存進資料庫欄位</b>！正確做法是：</p>
+  <ol>
+    <li>前端透過 <code>supabase.storage.from('task-proofs').upload(...)</code> 將照片二進位檔上傳到雲端儲存桶。</li>
+    <li>儲存桶回傳一個全世界都可訪問的 CDN 圖片網址（如 <code>https://xxx.supabase.co/storage/v1/object/public/task-proofs/abc.jpg</code>）。</li>
+    <li>最後只把這串「網址字串」寫入 <code>tasks.proof_url</code> 或 <code>profiles.avatar_url</code>！</li>
+  </ol>
+
+  <h3>3. 伺服器端自動化月結算 (pg_cron 定時機器人)</h3>
+  <div class="callout callout-tech">
+    <div class="callout-title">🤖 雲端排程原理：就算沒人開網頁，也能定時罰款！</div>
+    <p>我們在 Supabase 內部寫了一段 PL/pgSQL 預存程序 <code>monthly_settlement_audit()</code>，並透過 <code>pg_cron</code> 設定定時鬧鐘：在每月最後一天 UTC 16:00（即台灣時間次月 1 號 00:00）自動喚醒，掃描上個月每個人未完成任務的天數與預排不足的次數，自動生成月結帳單並累加至金庫！</p>
+  </div>
+
+  <!-- 第 5 講 -->
+  <h2>第 5 講：版本控制與團隊協作 (Git & GitHub)</h2>
+
+  <p>工程師寫程式最怕「改壞了回不去」或是「電腦壞了代碼全滅」。<b>Git</b> 是代碼的時光機，而 <b>GitHub</b> 則是代碼在雲端的雲端硬碟兼協作平台。</p>
+
+  <h3>1. 關鍵防雷神器：.gitignore</h3>
+  <div class="callout callout-pitfall">
+    <div class="callout-title">⚠️ 新手最常犯的重大致命錯誤！</div>
+    <p>新手常不小心把 <code>node_modules/</code>（幾萬個龐大檔案）或 <code>.env</code>（裡面有你的私密金鑰！）全部推上 GitHub。公開的 GitHub 倉庫有機器人 24 小時巡邏，若金鑰外洩可能導致資料庫被駭！<br/>
+    因此必須在專案根目錄建立 <code>.gitignore</code>，明確告訴 Git 忽略這些檔案！</p>
+  </div>
+
+  <h3>2. 現代 GitHub 推送必備：SSH 密鑰 (SSH Key)</h3>
+  <p>自 2021 年起，GitHub 為了安全性已經全面禁止在終端機輸入帳號密碼來 push 代碼。我們必須在本機產生一組非對稱加密密鑰：</p>
+  <pre><code># 1. 產生高強度的 ed25519 SSH 金鑰
+ssh-keygen -t ed25519 -C "你的GitHub帳號" -f ~/.ssh/id_ed25519 -N ""
+
+# 2. 將公鑰複製到剪貼簿並貼到 GitHub Settings -> SSH Keys
+cat ~/.ssh/id_ed25519.pub | pbcopy
+
+# 3. 關聯遠端倉庫並安全推送
+git remote set-url origin git@github.com:Johnson-bro-coder/self-discipline.git
+git push -u origin main</code></pre>
+
+  <div class="page-break"></div>
+
+  <!-- 第 6 講 -->
+  <h2>第 6 講：全球邊緣部署上線 (Cloudflare Pages)</h2>
+
+  <p>寫好的代碼只跑在自己的 <code>localhost:5173</code> 不叫網站。要讓所有人透過網址打開，我們選擇了全世界頂尖的 CDN 服務商 <b>Cloudflare Pages</b>。</p>
+
+  <h3>1. 現代化的 GitOps 自動化持續交付 (CI/CD)</h3>
+  <p>當你在 Cloudflare Pages 連結 GitHub 倉庫後，就啟動了現代化的 <b>CI/CD (Continuous Integration / Continuous Deployment)</b> 流水線：</p>
+  <div class="flow-card">
+    你在本地修改代碼 → <code>git commit</code> → <code>git push origin main</code><br/>
+    ↓ (GitHub 收到推送，發送信號給 Cloudflare)<br/>
+    Cloudflare 伺服器自動拉取最新代碼 → 執行 <code>npm run build</code> → 產出 <code>dist/</code><br/>
+    ↓ (將編譯後的靜態檔案發布至全球 300+ 邊緣節點)<br/>
+    <b>🎉 約 1 分鐘內，全世界上線網址自動完成更新！</b>
+  </div>
+
+  <h3>2. 環境變數 (Environment Variables) 的藝術</h3>
+  <p>在本地我們寫在 <code>.env</code> 檔案裡，但在上線伺服器，我們要在 Cloudflare Pages 後台設定：</p>
+  <ul>
+    <li><code>VITE_SUPABASE_URL</code>：你的 Supabase 專案網址</li>
+    <li><code>VITE_SUPABASE_ANON_KEY</code>：你的 Supabase 公開 anon 金鑰</li>
+    <li><code>VITE_PENALTY_UNIT</code>：違規罰金單位（100）</li>
+  </ul>
+
+  <h3>3. 單頁應用 (SPA) 路由與防止瀏覽器強快取策略</h3>
+  <p>Vite 構建的是 SPA（Single Page Application），所有的頁面切換都是前端 JS 模擬的。<br/>
+  為了解決「重新整理出現 404」與「每次部署後使用者瀏覽器卡在舊版」的兩大難題，我們在 <code>public/_headers</code> 加入了精密快取控制：</p>
+  <pre><code># public/_headers
+/*
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable</code></pre>
+  <p><b>策略精髓</b>：對入口 <code>index.html</code> 永遠不快取（保證第一時間拿到最新代碼指標）；對帶有雜湊字尾的靜態資源（如 <code>index-CdkHJmJQ.js</code>）開啟長效快取，兼顧了秒開速度與永遠即時更新！</p>
+
+  <!-- 第 7 講 -->
+  <h2>第 7 講：實戰避坑指南與全端工程師思維</h2>
+
+  <table>
+    <tr><th>遭遇問題</th><th>根本原因</th><th>工程師排查解法</th></tr>
+    <tr>
+      <td>部署後顯示 <code>VitePress 404 PAGE NOT FOUND</code></td>
+      <td>Cloudflare Pages 預設範本選成了寫文檔用的「VitePress」而非「Vite」，自動跑了 <code>npx vitepress build</code>。</td>
+      <td>至專案後台 Settings ➔ Builds ➔ 將 Framework Preset 改為 <code>Vite</code>，Build command 改為 <code>npm run build</code>。</td>
+    </tr>
+    <tr>
+      <td>執行 git push 跳出 <code>Password authentication is not supported</code></td>
+      <td>GitHub 早已停止帳號密碼驗證，防止密碼被暴力破解。</td>
+      <td>改用 SSH Key 金鑰對認證，或改用 Personal Access Token (PAT)。</td>
+    </tr>
+    <tr>
+      <td>代碼推送後打開網頁沒看到更新</td>
+      <td>瀏覽器磁碟快取（Disk Cache）自作聰明讀取了舊的 HTML。</td>
+      <td>
+        1. 使用者端按 <code>Cmd + Shift + R</code> 強制刷新。<br/>
+        2. 伺服器端配置 <code>no-cache</code> 標頭徹底杜絕。
+      </td>
+    </tr>
+  </table>
+
+  <div class="callout callout-analogy">
+    <div class="callout-title">🎓 結語：寫給未來的資深工程師</div>
+    <p>恭喜你！走完這份手冊，你已經親手經歷了一個現代軟體工程師在矽谷或科技大廠最核心的工作流：<br/>
+    <b>需求分析 ➔ 架構拆解 ➔ UI/UX 動態美學 ➔ 資料庫與儲存桶設計 ➔ 定時排程無人化 ➔ 版本控制 ➔ CI/CD 全球部署</b>。<br/>
+    技術的語法會隨著年份更迭，但這種「拆解問題、分層解決、邊做邊修」的工程思維，將是你大學四年與未來工程師生涯最強大的核心競爭力！</p>
+  </div>
+
+</body>
+</html>
