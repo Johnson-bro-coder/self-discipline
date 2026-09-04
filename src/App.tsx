@@ -131,10 +131,36 @@ export const App: React.FC = () => {
   const currentProfile =
     profiles.find((p) => p.id === currentUserId) || profiles[0] || null;
 
-  // 計算未結算違規總數
-  const totalUnsettledViolations = tasks.filter(
-    (t) => t.status === 'pending' && !t.is_completed && !t.is_skipped
-  ).length;
+  // 計算未結算違規總數 (按天違規 + 預排違規)
+  const totalUnsettledViolations = React.useMemo(() => {
+    let total = 0;
+    profiles.forEach((p) => {
+      const userTasks = tasks.filter((t) => t.user_id === p.id);
+      const distinctDates = Array.from(new Set(userTasks.map((t) => t.target_date)));
+      distinctDates.forEach((dateStr) => {
+        const dayTasks = userTasks.filter(
+          (t) => t.target_date === dateStr && (t.category === 'daily' || t.category === 'routine')
+        );
+        if (dayTasks.some((t) => !t.is_completed && !t.is_skipped)) {
+          total += 1;
+        }
+        if (dateStr < todayDateStr) {
+          const d = new Date(dateStr);
+          d.setDate(d.getDate() + 1);
+          const nextDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          const nextDayPlans = userTasks.filter((t) => t.target_date === nextDateStr && t.category === 'daily');
+          if (nextDayPlans.length < 2) {
+            total += 1;
+          }
+        }
+      });
+      const tomorrowTasks = userTasks.filter((t) => t.category === 'daily' && t.target_date > todayDateStr);
+      if (tomorrowTasks.length < 2) {
+        total += 1;
+      }
+    });
+    return total;
+  }, [tasks, profiles, todayDateStr]);
 
   // 登入身分選擇
   const handleSelectUser = (userId: string) => {
@@ -249,7 +275,7 @@ export const App: React.FC = () => {
   // 手動模擬月結算
   const handleRunMonthlySettlement = async () => {
     const confirm = window.confirm(
-      '即將模擬執行【每月 1 號 00:00 月結排程】：\n1. 統計上月未打卡且未豁免的違規項目\n2. 每項計入 $100 元，產出月結帳單\n3. 累加至個人 total_paid_fine 並轉入公費總池\n\n確定立即模擬執行？'
+      '即將模擬執行【每月 1 號 00:00 月結排程】：\n1. 統計上月每日任務/常駐必做未完（有任一未完當日罰 $100）\n2. 統計明日預排不足 2 項之違規（每次罰 $100）\n3. 產出月結帳單，累加至個人罰金並計入公費金庫總額\n\n確定立即模擬執行？'
     );
     if (!confirm) return;
 
@@ -266,39 +292,39 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-screen bg-cyber-darkest text-slate-100 flex flex-col font-sans select-none relative crt-overlay">
-      {/* 1. 頂部賽博監控列 */}
-      <header className="h-16 px-6 bg-cyber-950/90 border-b border-cyber-800 backdrop-blur-xl flex items-center justify-between shrink-0 z-30">
+    <div className="min-h-screen w-screen bg-black text-white flex flex-col font-sans select-none relative ios-glass-bg">
+      {/* 1. 頂部 iOS 液態玻璃列 */}
+      <header className="h-16 px-6 bg-black/40 border-b border-white/[0.08] backdrop-blur-2xl flex items-center justify-between shrink-0 z-30 sticky top-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-neon-cyan/10 border border-neon-cyan/40 flex items-center justify-center text-neon-cyan">
-            <Flame className="w-5 h-5 text-neon-cyan animate-pulse" />
+          <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white">
+            <Flame className="w-4 h-4 text-white" />
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <h1 className="text-sm font-black font-mono tracking-widest text-slate-100 uppercase">
-                TRIO DISCIPLINE <span className="text-neon-cyan">// OS</span>
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-bold tracking-tight text-white uppercase font-sans">
+                TRIO DISCIPLINE
               </h1>
-              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40">
-                CYBERPUNK
+              <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-white/10 text-white border border-white/20">
+                PRO
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 font-mono">
-              Johnson • nigga • shorty 終端防線
+            <p className="text-[10px] text-zinc-400 font-mono">
+              Johnson • nigga • shorty 共同自律
             </p>
           </div>
         </div>
 
         {/* 中央即時時間與 23:59 倒數計時 */}
-        <div className="hidden md:flex items-center gap-6">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyber-900 border border-cyber-800 text-xs font-mono">
-            <Clock className="w-4 h-4 text-neon-cyan" />
-            <span className="text-slate-400">CLOCK:</span>
-            <span className="text-slate-200 font-bold tracking-wider">{currentTime}</span>
+        <div className="hidden md:flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-xs font-mono">
+            <Clock className="w-3.5 h-3.5 text-zinc-400" />
+            <span className="text-zinc-400">現在時間:</span>
+            <span className="text-white font-semibold">{currentTime}</span>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-neon-magenta/10 border border-neon-magenta/40 text-xs font-mono">
-            <span className="text-neon-magenta font-semibold animate-pulse">23:59 結算倒數:</span>
-            <span className="text-rose-200 font-extrabold tracking-widest text-sm font-mono">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-xs font-mono">
+            <span className="text-white font-medium">23:59 結算倒數:</span>
+            <span className="text-white font-bold tracking-wider">
               {countdown}
             </span>
           </div>
@@ -306,33 +332,33 @@ export const App: React.FC = () => {
 
         {/* 右側當前操作者標籤與連線狀態 */}
         <div className="flex items-center gap-3">
-          <div className="hidden lg:flex items-center gap-1 px-2.5 py-1 rounded bg-cyber-900 border border-cyber-800 text-[10px] font-mono text-slate-400">
-            <Database className="w-3 h-3 text-neon-cyan" />
+          <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.04] border border-white/10 text-[10px] font-mono text-zinc-400">
+            <Database className="w-3 h-3 text-white" />
             {isSupabaseConfigured() ? (
-              <span className="text-neon-green">ONLINE</span>
+              <span className="text-white font-medium">CLOUD ONLINE</span>
             ) : (
-              <span className="text-neon-yellow">LOCAL CACHE</span>
+              <span className="text-zinc-400">LOCAL CACHE</span>
             )}
           </div>
 
           {currentProfile ? (
             <button
               onClick={() => setActiveTab('settings')}
-              className="flex items-center gap-2.5 p-1.5 pr-3 rounded-full bg-cyber-900 border border-cyber-700 hover:border-neon-cyan transition-all group"
+              className="flex items-center gap-2.5 p-1 pr-3.5 rounded-full bg-white/[0.05] border border-white/15 hover:border-white/40 transition-all group"
             >
               <img
                 src={currentProfile.avatar_url}
                 alt={currentProfile.username}
-                className="w-7 h-7 rounded-full object-cover border border-neon-cyan/50"
+                className="w-7 h-7 rounded-full object-cover border border-white/20"
               />
-              <span className="text-xs font-mono font-bold text-slate-200 group-hover:text-neon-cyan">
+              <span className="text-xs font-sans font-semibold text-white group-hover:text-white">
                 {currentProfile.username}
               </span>
             </button>
           ) : (
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className="px-3 py-1.5 rounded-lg bg-neon-cyan text-cyber-950 font-mono text-xs font-bold"
+              className="px-4 py-1.5 rounded-full bg-white text-black font-semibold text-xs shadow-sm hover:bg-zinc-200 transition-colors"
             >
               登入身分
             </button>
@@ -343,9 +369,9 @@ export const App: React.FC = () => {
       {/* 2. 主視圖內容區域 (根據 BottomNav 切換) */}
       <main className="flex-1 p-6 overflow-y-auto min-h-0">
         {isLoading || !groupSettings || !currentProfile ? (
-          <div className="h-full flex flex-col items-center justify-center text-slate-500 font-mono text-sm py-20">
-            <Terminal className="w-8 h-8 text-neon-cyan animate-pulse mb-3" />
-            <p>INITIALIZING CYBERPUNK MATRIX...</p>
+          <div className="h-full flex flex-col items-center justify-center text-zinc-500 font-mono text-sm py-20">
+            <Terminal className="w-8 h-8 text-white animate-pulse mb-3" />
+            <p>載入自律系統矩陣中...</p>
           </div>
         ) : (
           <>
@@ -386,16 +412,16 @@ export const App: React.FC = () => {
                 monthlyBills={monthlyBills}
                 tasks={tasks}
                 onRunMonthlySettlement={handleRunMonthlySettlement}
+                onUpdateGroupSettings={handleUpdateGroupSettings}
                 isAuditing={isAuditing}
+                todayDateStr={todayDateStr}
               />
             )}
 
             {activeTab === 'settings' && (
               <SettingsView
                 currentProfile={currentProfile}
-                groupSettings={groupSettings}
                 onUpdateProfile={handleUpdateProfile}
-                onUpdateGroupSettings={handleUpdateGroupSettings}
                 onLogout={handleLogout}
               />
             )}
@@ -403,7 +429,7 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      {/* 3. 固定的賽博底部導航列 (Bottom Navigation Bar) */}
+      {/* 3. 固定的 iOS 浮動玻璃導覽列 (Bottom Navigation Bar) */}
       <BottomNav
         activeTab={activeTab}
         onTabChange={setActiveTab}

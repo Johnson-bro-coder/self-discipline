@@ -13,7 +13,7 @@ const PRESET_REASONS = [
   '暴雨特報／極端天候，取消戶外場地',
   '緊急公司加班／專案即刻搶修',
   '突發高燒身體不適／需強制靜養',
-  '家庭緊急事件臨時處理',
+  '家庭緊急突發事件處理',
 ];
 
 export const SkipReasonModal: React.FC<SkipReasonModalProps> = ({
@@ -47,60 +47,57 @@ export const SkipReasonModal: React.FC<SkipReasonModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md animate-fadeIn p-4 select-none">
-      <div className="w-full max-w-md bg-cyber-950 border border-neon-yellow/50 cyber-clip-card p-6 shadow-cyber-yellow relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl animate-fadeIn p-4 select-none">
+      <div className="w-full max-w-md ios-glass-card p-6 shadow-[0_30px_80px_rgba(0,0,0,0.9)] relative">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-cyber-800 transition-colors"
+          className="absolute top-4 right-4 w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
         {/* 標頭 */}
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-neon-yellow/20 border border-neon-yellow/40 flex items-center justify-center text-neon-yellow">
-            <AlertTriangle className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center border border-white/15">
+            <AlertTriangle className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-100 font-mono">FORCE MAJEURE // 申請豁免</h3>
-            <p className="text-xs text-neon-yellow font-mono">
-              月底結算時不計入違規罰款 (免罰 $100)
+            <h3 className="text-base font-bold text-white tracking-tight">
+              申請不可抗力豁免
+            </h3>
+            <p className="text-[11px] text-zinc-400 font-mono">
+              強制填寫合理原由，豁免成功則免扣罰金
             </p>
           </div>
         </div>
 
-        {/* 申請任務項目 */}
-        <div className="p-3.5 rounded-xl bg-cyber-900 border border-cyber-700 mb-4">
-          <div className="text-[10px] font-mono text-slate-400 uppercase mb-1">申請豁免項目：</div>
-          <div className="text-sm font-semibold text-slate-200 font-mono">{task.title}</div>
+        {/* 任務摘要 */}
+        <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.08] mb-4">
+          <div className="text-[10px] font-mono text-zinc-500 uppercase">目標項目</div>
+          <div className="text-sm font-semibold text-white mt-0.5">{task.title}</div>
         </div>
 
-        {/* 快捷標籤 */}
-        <div className="mb-3">
-          <label className="text-[10px] font-mono text-slate-400 mb-1.5 block">
-            常用不可抗力快捷標籤：
-          </label>
+        {/* 常用快速原因推薦 */}
+        <div className="mb-4">
+          <span className="text-[11px] font-mono text-zinc-400 block mb-2">快速帶入情境：</span>
           <div className="flex flex-wrap gap-1.5">
-            {PRESET_REASONS.map((r) => (
+            {PRESET_REASONS.map((preset) => (
               <button
-                key={r}
+                key={preset}
                 type="button"
-                onClick={() => {
-                  setReason(r);
-                  setErrorMsg('');
-                }}
-                className="text-[10px] px-2 py-1 rounded bg-cyber-900 border border-cyber-700 hover:border-neon-yellow text-slate-300 hover:text-neon-yellow transition-colors font-mono text-left"
+                onClick={() => setReason(preset)}
+                className="px-3 py-1 rounded-full text-[11px] font-mono bg-white/[0.04] hover:bg-white/10 text-zinc-300 border border-white/[0.08] hover:border-white/20 transition-all text-left"
               >
-                + {r}
+                {preset}
               </button>
             ))}
           </div>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-1.5">
-            <label className="text-xs font-mono text-slate-300">
-              請輸入詳細豁免理由：<span className="text-neon-magenta">*</span>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-xs font-mono text-zinc-400 block mb-1.5">
+              請陳述具體事由：
             </label>
             <textarea
               rows={3}
@@ -109,30 +106,32 @@ export const SkipReasonModal: React.FC<SkipReasonModalProps> = ({
                 setReason(e.target.value);
                 setErrorMsg('');
               }}
-              placeholder="請務必如實填寫..."
-              className="w-full px-3.5 py-2.5 rounded-xl bg-cyber-900 border border-cyber-700 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-neon-yellow resize-none font-mono"
+              placeholder="例如：因急性腸胃炎就醫診斷需靜養一天..."
+              className="w-full px-4 py-2.5 rounded-xl bg-black/60 border border-white/20 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-white font-sans resize-none"
             />
           </div>
 
           {errorMsg && (
-            <p className="text-xs font-mono text-neon-magenta mt-1.5">{errorMsg}</p>
+            <div className="text-xs font-mono text-white bg-white/10 p-2 rounded-xl border border-white/20">
+              ⚠️ {errorMsg}
+            </div>
           )}
 
-          <div className="mt-5 flex items-center justify-end gap-3">
+          <div className="flex items-center justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-mono text-slate-400 hover:text-slate-200 hover:bg-cyber-800 transition-colors"
+              className="px-4 py-2 rounded-full text-xs font-mono text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
             >
-              返回取消
+              取消
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="px-5 py-2 rounded-xl text-xs font-mono font-bold bg-neon-yellow hover:bg-neon-yellow/90 text-cyber-950 shadow-cyber-yellow flex items-center gap-1.5 transition-all disabled:opacity-50"
+              disabled={isSubmitting || !reason.trim()}
+              className="px-5 py-2 rounded-full text-xs font-semibold bg-white hover:bg-zinc-200 text-black shadow-[0_0_15px_rgba(255,255,255,0.2)] flex items-center gap-1.5 transition-all disabled:opacity-40"
             >
               <Check className="w-3.5 h-3.5" />
-              <span>核准豁免申請</span>
+              <span>{isSubmitting ? '審查提交中...' : '提交豁免申請'}</span>
             </button>
           </div>
         </form>

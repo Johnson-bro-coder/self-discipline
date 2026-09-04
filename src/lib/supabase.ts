@@ -495,20 +495,47 @@ export const runMonthlySettlementRpc = async (): Promise<{ success: boolean; mes
   let totalNewFine = 0;
 
   const updatedProfiles = profiles.map((p) => {
-    // 找出該用戶在 pending 且未完成、未豁免的任務
-    const failedTasks = tasks.filter(
-      (t) => t.user_id === p.id && t.status === 'pending' && !t.is_completed && !t.is_skipped
-    );
-    const count = failedTasks.length;
-    const fine = count * 100;
+    // 找出上個月所有任務
+    const userTasks = tasks.filter((t) => t.user_id === p.id);
+    
+    // 取得所有任務的日期集合
+    const targetDates = Array.from(new Set(userTasks.map((t) => t.target_date)));
+    
+    let dailyFailedDays = 0;
+    let preplanFailedDays = 0;
+
+    targetDates.forEach((dateStr) => {
+      // 1. 檢查該日任務與常駐必做是否有任一未完成且未豁免 (無論幾個均算 1 次違規)
+      const dayTasks = userTasks.filter(
+        (t) => t.target_date === dateStr && (t.category === 'daily' || t.category === 'routine')
+      );
+      if (dayTasks.length > 0) {
+        const hasUnfinished = dayTasks.some((t) => !t.is_completed && !t.is_skipped);
+        if (hasUnfinished) {
+          dailyFailedDays += 1;
+        }
+      }
+
+      // 2. 檢查該日針對隔日的預排是否不足 2 項 (不足 2 項算 1 次違規)
+      const d = new Date(dateStr);
+      d.setDate(d.getDate() + 1);
+      const nextDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const nextDayPlans = userTasks.filter((t) => t.target_date === nextDateStr && t.category === 'daily');
+      if (nextDayPlans.length < 2) {
+        preplanFailedDays += 1;
+      }
+    });
+
+    const totalViolations = dailyFailedDays + preplanFailedDays;
+    const fine = totalViolations * 100;
     totalNewFine += fine;
 
-    if (count > 0 || fine > 0) {
+    if (totalViolations > 0) {
       newBills.push({
         id: 'bill_' + Math.random().toString(36).substring(2, 9),
         user_id: p.id,
         billing_month: billingMonthStr,
-        failed_tasks_count: count,
+        failed_tasks_count: totalViolations,
         fine_amount: fine,
         created_at: new Date().toISOString(),
       });

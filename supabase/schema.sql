@@ -111,6 +111,9 @@ ON storage.objects FOR UPDATE
 USING (bucket_id = 'task-proofs');
 
 -- 9. 自動化月結算函數 (每月 1 號 00:00 執行)
+-- 規則：
+-- 1. 當日任務以及常駐每日必做有任一個沒完成（無論幾個）該日均只罰 100 元
+-- 2. 明日預排序列未在規定時間內排完 (不足 2 項) 該日亦罰 100 元
 CREATE OR REPLACE FUNCTION public.monthly_settlement_audit()
 RETURNS VOID
 LANGUAGE plpgsql
@@ -120,8 +123,13 @@ DECLARE
     u RECORD;
     v_last_month_start DATE;
     v_this_month_start DATE;
-    v_failed_cnt INT;
+    v_curr_date DATE;
+    v_daily_failed_days INT;
+    v_preplan_failed_days INT;
+    v_total_violations INT;
     v_penalty_amount INT;
+    v_day_uncompleted_cnt INT;
+    v_tomorrow_plan_cnt INT;
 BEGIN
     -- 以台北時間計算上個月初與本月初
     v_this_month_start := date_trunc('month', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei'))::DATE;
@@ -136,18 +144,43 @@ BEGIN
       AND is_completed = FALSE
       AND is_skipped = FALSE;
 
-    -- 步驟 2: 計算每位使用者上個月的失敗任務總數，產出月結帳單並累加至 profiles
+    -- 步驟 2: 遍歷每位成員，按「天」結算違規 (當日有任何任務未完成罰 100；預排不足 2 項罰 100)
     FOR u IN SELECT id, username FROM public.profiles LOOP
-        SELECT COUNT(*) INTO v_failed_cnt
-        FROM public.tasks
-        WHERE user_id = u.id
-          AND target_date >= v_last_month_start
-          AND target_date < v_this_month_start
-          AND status = 'failed';
+        v_daily_failed_days := 0;
+        v_preplan_failed_days := 0;
 
-        v_penalty_amount := v_failed_cnt * 100;
+        v_curr_date := v_last_month_start;
+        WHILE v_curr_date < v_this_month_start LOOP
+            -- A. 當日任務與常駐必做是否有任一未完成且未豁免 (無論幾個均算 1 次違規)
+            SELECT COUNT(*) INTO v_day_uncompleted_cnt
+            FROM public.tasks
+            WHERE user_id = u.id
+              AND target_date = v_curr_date
+              AND category IN ('daily', 'routine')
+              AND status = 'failed';
 
-        -- 寫入月結帳單 (若無帳單才新增，避免重複結算)
+            IF v_day_uncompleted_cnt > 0 THEN
+                v_daily_failed_days := v_daily_failed_days + 1;
+            END IF;
+
+            -- B. 當日針對隔日之預排是否不足 2 項 (不足 2 項算 1 次違規)
+            SELECT COUNT(*) INTO v_tomorrow_plan_cnt
+            FROM public.tasks
+            WHERE user_id = u.id
+              AND target_date = (v_curr_date + INTERVAL '1 day')::DATE
+              AND category = 'daily';
+
+            IF v_tomorrow_plan_cnt < 2 THEN
+                v_preplan_failed_days := v_preplan_failed_days + 1;
+            END IF;
+
+            v_curr_date := v_curr_date + INTERVAL '1 day';
+        END LOOP;
+
+        v_total_violations := v_daily_failed_days + v_preplan_failed_days;
+        v_penalty_amount := v_total_violations * 100;
+
+        -- 寫入月結帳單
         INSERT INTO public.monthly_bills (
             user_id,
             billing_month,
@@ -157,7 +190,7 @@ BEGIN
         VALUES (
             u.id,
             v_last_month_start,
-            v_failed_cnt,
+            v_total_violations,
             v_penalty_amount
         );
 
