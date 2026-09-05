@@ -12,7 +12,6 @@ import {
   completeTaskWithProof,
   skipTaskWithReason,
   getMonthlyBills,
-  runMonthlySettlementRpc,
   checkAndAutoArchiveMonthlyBills,
   isSupabaseConfigured,
   createDailyRoutine,
@@ -46,7 +45,6 @@ export const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [monthlyBills, setMonthlyBills] = useState<MonthlyBill[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isAuditing, setIsAuditing] = useState<boolean>(false);
 
   // 打卡、豁免與照片燈箱 Modal
   const [selectedProofTask, setSelectedProofTask] = useState<Task | null>(null);
@@ -280,25 +278,6 @@ export const App: React.FC = () => {
     await reloadData();
   };
 
-  // 手動模擬月結算
-  const handleRunMonthlySettlement = async () => {
-    const confirm = window.confirm(
-      '即將模擬執行【每月 1 號 00:00 月結排程】：\n1. 統計上月每日任務/常駐必做未完（有任一未完當日罰 $100）\n2. 統計明日預排不足 2 項之違規（每次罰 $100）\n3. 產出月結帳單，累加至個人罰金並計入公費金庫總額\n\n確定立即模擬執行？'
-    );
-    if (!confirm) return;
-
-    setIsAuditing(true);
-    try {
-      const res = await runMonthlySettlementRpc();
-      alert(res.message);
-      await reloadData();
-    } catch (err) {
-      alert('月結算執行異常');
-    } finally {
-      setIsAuditing(false);
-    }
-  };
-
   return (
     <div className="min-h-screen w-screen bg-black text-white flex flex-col font-sans select-none relative ios-glass-bg">
       {/* 1. 頂部 iOS 液態玻璃列 */}
@@ -423,9 +402,7 @@ export const App: React.FC = () => {
                 groupSettings={groupSettings}
                 monthlyBills={monthlyBills}
                 tasks={tasks}
-                onRunMonthlySettlement={handleRunMonthlySettlement}
                 onUpdateGroupSettings={handleUpdateGroupSettings}
-                isAuditing={isAuditing}
                 todayDateStr={todayDateStr}
               />
             )}

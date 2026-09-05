@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   Receipt,
   Plane,
-  RefreshCw,
   Edit2,
   Check,
   X,
@@ -21,9 +20,7 @@ interface TreasuryViewProps {
   groupSettings: GroupSettings;
   monthlyBills: MonthlyBill[];
   tasks: Task[];
-  onRunMonthlySettlement: () => Promise<void>;
   onUpdateGroupSettings: (name: string, amount: number) => Promise<void>;
-  isAuditing: boolean;
   todayDateStr: string;
 }
 
@@ -32,9 +29,7 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
   groupSettings,
   monthlyBills,
   tasks,
-  onRunMonthlySettlement,
   onUpdateGroupSettings,
-  isAuditing,
   todayDateStr,
 }) => {
   // 1. 編輯共同夢想標竿狀態 (Requirement 1: 直接在金庫頁面修改名稱與目標金額)
@@ -418,16 +413,10 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={onRunMonthlySettlement}
-            disabled={isAuditing}
-            className="px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-mono text-white flex items-center gap-1.5 transition-all disabled:opacity-40 self-start sm:self-auto cursor-pointer"
-            title="手動模擬或重新執行每月 1 號 00:00 歸檔排程"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isAuditing ? 'animate-spin' : ''}`} />
-            <span>模擬 / 執行 1 號歸檔</span>
-          </button>
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.06] border border-white/10 text-[11px] font-mono text-zinc-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>全自動排程執行中</span>
+          </div>
         </div>
 
         {monthlyBills.length === 0 ? (
@@ -436,7 +425,7 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
               - 暫無月結帳單紀錄 -
             </div>
             <p className="text-[11px] text-zinc-500">
-              系統會在每月 1 號 00:00 自動統計整月違規並寫入此處歸檔，亦可隨時點擊上方按鈕進行模擬。
+              系統會在每月 1 號 00:00 自動結算整月違規並寫入此處歸檔，全自動無人值守運作。
             </p>
           </div>
         ) : (
