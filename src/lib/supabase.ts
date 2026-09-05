@@ -25,12 +25,29 @@ export const supabase = isSupabaseConfigured()
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
-// LocalStorage 鍵名 (升級為 v4 以完全重置為 0 罰金與 0 任務乾淨狀態)
-const STORAGE_KEY_PROFILES = 'cyber_discipline_profiles_v4';
-const STORAGE_KEY_GROUP = 'cyber_discipline_group_settings_v4';
-const STORAGE_KEY_ROUTINES = 'cyber_discipline_routines_v4';
-const STORAGE_KEY_TASKS = 'cyber_discipline_tasks_v4';
-const STORAGE_KEY_BILLS = 'cyber_discipline_monthly_bills_v4';
+// LocalStorage 鍵名 (升級為 v5 以完全重置為 0 罰金與 0 任務乾淨狀態)
+const STORAGE_KEY_PROFILES = 'cyber_discipline_profiles_v5';
+const STORAGE_KEY_GROUP = 'cyber_discipline_group_settings_v5';
+const STORAGE_KEY_ROUTINES = 'cyber_discipline_routines_v5';
+const STORAGE_KEY_TASKS = 'cyber_discipline_tasks_v5';
+const STORAGE_KEY_BILLS = 'cyber_discipline_monthly_bills_v5';
+
+export const clearLegacyStorage = () => {
+  try {
+    for (let i = 1; i <= 4; i++) {
+      localStorage.removeItem(`cyber_discipline_profiles_v${i}`);
+      localStorage.removeItem(`cyber_discipline_group_settings_v${i}`);
+      localStorage.removeItem(`cyber_discipline_routines_v${i}`);
+      localStorage.removeItem(`cyber_discipline_tasks_v${i}`);
+      localStorage.removeItem(`cyber_discipline_monthly_bills_v${i}`);
+    }
+  } catch (e) {
+    // ignore
+  }
+};
+
+// 載入時自動清理舊版快取
+clearLegacyStorage();
 
 // -------------------------------------------------------------
 // 1. Profile 存取與修改
@@ -54,8 +71,35 @@ export const getProfiles = async (): Promise<Profile[]> => {
       // ignore
     }
   }
-  localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(DEFAULT_PROFILES));
-  return DEFAULT_PROFILES;
+
+  // 嘗試從舊版本保留使用者的 username 與 avatar_url，但將 total_paid_fine 強制初始化為 0
+  let initial = DEFAULT_PROFILES;
+  const legacyKey =
+    localStorage.getItem('cyber_discipline_profiles_v4') ||
+    localStorage.getItem('cyber_discipline_profiles_v3');
+  if (legacyKey) {
+    try {
+      const parsed = JSON.parse(legacyKey);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        initial = DEFAULT_PROFILES.map((dp) => {
+          const matched = parsed.find((p: Profile) => p.id === dp.id);
+          return matched
+            ? {
+                ...dp,
+                username: matched.username || dp.username,
+                avatar_url: matched.avatar_url || dp.avatar_url,
+                total_paid_fine: 0,
+              }
+            : dp;
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(initial));
+  return initial;
 };
 
 export const updateProfile = async (
@@ -501,6 +545,13 @@ export const runMonthlySettlementRpc = async (
   const tasks = await getTasks();
   const bills = await getMonthlyBills();
 
+  if (tasks.length === 0) {
+    return {
+      success: true,
+      message: '目前系統尚無任何任務記錄，無需結算。',
+    };
+  }
+
   // 檢查該月是否已歸檔過
   const alreadySettled = bills.some((b) => b.billing_month.startsWith(billingMonthStr.slice(0, 7)));
   if (alreadySettled && !force) {
@@ -655,3 +706,42 @@ export const checkAndAutoArchiveMonthlyBills = async (): Promise<{
   }
   return { archived: false };
 };
+
+/**
+ * 全部初始化所有任務、常駐必做、歷史帳單與罰款
+ */
+export const resetAllTasksAndFines = async (): Promise<{ success: boolean; message: string }> => {
+  try {
+    // 1. 若有 Supabase 連線，清空雲端資料庫
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.from('tasks').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await supabase.from('daily_routines').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await supabase.from('monthly_bills').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await supabase.from('profiles').update({ total_paid_fine: 0 }).neq('id', '00000000-0000-0000-0000-000000000000');
+      } catch (cloudErr) {
+        console.warn('Supabase cloud reset warning:', cloudErr);
+      }
+    }
+
+    // 2. 本地 LocalStorage 清空與歸零
+    const currentProfiles = await getProfiles();
+    const cleanProfiles = currentProfiles.map((p) => ({
+      ...p,
+      total_paid_fine: 0,
+    }));
+
+    localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(cleanProfiles));
+    localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_ROUTINES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_BILLS, JSON.stringify([]));
+
+    clearLegacyStorage();
+
+    return { success: true, message: '所有任務、必做項目與罰金已全數初始化歸零！' };
+  } catch (err: any) {
+    console.error('Reset error:', err);
+    return { success: false, message: err?.message || '初始化失敗' };
+  }
+};
+

@@ -18,6 +18,7 @@ import {
   updateDailyRoutine,
   removeDailyRoutine,
   ensureDailyRoutinesForDate,
+  resetAllTasksAndFines,
 } from './lib/supabase';
 import { getTodayDateStr, getTomorrowDateStr } from './lib/mockData';
 import { BottomNav } from './components/BottomNav';
@@ -138,6 +139,8 @@ export const App: React.FC = () => {
     let total = 0;
     profiles.forEach((p) => {
       const userTasks = tasks.filter((t) => t.user_id === p.id);
+      if (userTasks.length === 0) return;
+
       const distinctDates = Array.from(new Set(userTasks.map((t) => t.target_date)));
       distinctDates.forEach((dateStr) => {
         const dayTasks = userTasks.filter(
@@ -156,9 +159,13 @@ export const App: React.FC = () => {
           }
         }
       });
-      const tomorrowTasks = userTasks.filter((t) => t.category === 'daily' && t.target_date > todayDateStr);
-      if (tomorrowTasks.length < 2) {
-        total += 1;
+
+      const hasTodayTasks = userTasks.some((t) => t.target_date === todayDateStr);
+      if (hasTodayTasks) {
+        const tomorrowTasks = userTasks.filter((t) => t.category === 'daily' && t.target_date > todayDateStr);
+        if (tomorrowTasks.length < 2) {
+          total += 1;
+        }
       }
     });
     return total;
@@ -275,6 +282,12 @@ export const App: React.FC = () => {
   // 修改群組目標
   const handleUpdateGroupSettings = async (name: string, amount: number) => {
     await updateGroupSettings({ goal_name: name, goal_amount: amount });
+    await reloadData();
+  };
+
+  // 一鍵初始化所有任務與罰款
+  const handleResetAllData = async () => {
+    await resetAllTasksAndFines();
     await reloadData();
   };
 
@@ -412,6 +425,7 @@ export const App: React.FC = () => {
                 currentProfile={currentProfile}
                 onUpdateProfile={handleUpdateProfile}
                 onLogout={handleLogout}
+                onResetAllData={handleResetAllData}
               />
             )}
           </>

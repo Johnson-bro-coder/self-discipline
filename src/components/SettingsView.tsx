@@ -8,6 +8,10 @@ import {
   CheckCircle,
   Camera,
   UploadCloud,
+  AlertTriangle,
+  RotateCcw,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
@@ -15,17 +19,22 @@ interface SettingsViewProps {
   currentProfile: Profile;
   onUpdateProfile: (username: string, avatarUrl: string) => Promise<void>;
   onLogout: () => void;
+  onResetAllData: () => Promise<void>;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   currentProfile,
   onUpdateProfile,
   onLogout,
+  onResetAllData,
 }) => {
   const [username, setUsername] = useState(currentProfile.username);
   const [avatarUrl, setAvatarUrl] = useState(currentProfile.avatar_url);
   const [profileSaved, setProfileSaved] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // 本機圖片選取與上傳處理 (Requirement 2)
@@ -80,6 +89,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     await onUpdateProfile(username.trim(), avatarUrl);
     setProfileSaved(true);
     setTimeout(() => setProfileSaved(false), 2500);
+  };
+
+  const handleConfirmResetAll = async () => {
+    setIsResetting(true);
+    try {
+      await onResetAllData();
+      setIsResetConfirmOpen(false);
+      setResetMessage('所有罰款與任務已全數成功初始化！');
+      setTimeout(() => setResetMessage(null), 4000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   return (
@@ -207,6 +230,102 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </form>
       </div>
+
+      {/* 3. 系統資料管理與危險重置區 (Danger Zone) */}
+      <div className="p-6 ios-glass-card border-red-500/20 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+            <h3 className="text-sm font-bold text-red-400 uppercase tracking-wider font-mono">
+              資料管理 // DANGER ZONE
+            </h3>
+          </div>
+          {resetMessage && (
+            <span className="text-xs font-mono text-emerald-400 flex items-center gap-1.5 animate-fadeIn">
+              <CheckCircle className="w-3.5 h-3.5" />
+              <span>{resetMessage}</span>
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h4 className="text-sm font-bold text-white">初始化所有罰款與任務</h4>
+            <p className="text-xs text-zinc-400 font-mono leading-relaxed">
+              一鍵清空所有今日任務、明日預排、每週排程、常駐必做與歷史月結帳單，並將全員罰款歸零（保留頭像與暱稱）。
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsResetConfirmOpen(true)}
+            className="px-4 py-2 rounded-full bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 hover:border-red-500/50 text-red-300 font-mono text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0 shadow-sm"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>一鍵初始化系統</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 初始化確認彈窗 */}
+      {isResetConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-fadeIn">
+          <div className="w-full max-w-md p-6 rounded-3xl bg-zinc-950/95 border border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.2)] space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-red-400">
+                <AlertTriangle className="w-5 h-5" />
+                <h3 className="text-base font-bold">確認初始化系統資料？</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsResetConfirmOpen(false)}
+                disabled={isResetting}
+                className="p-1 rounded-full text-zinc-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-red-950/20 border border-red-500/20 space-y-2 text-xs font-mono text-zinc-300">
+              <p className="font-bold text-red-300">⚠️ 此動作將執行以下初始化：</p>
+              <ul className="list-disc list-inside space-y-1 text-zinc-400 pl-1">
+                <li>清空所有今日任務、明日預排與每週排程</li>
+                <li>清空所有常駐每日必做序列模板</li>
+                <li>清空歷史月結帳單與待繳違規</li>
+                <li>所有成員累計已繳罰金全數歸零 ($0 NTD)</li>
+                <li>公費金庫總額與預估罰款全數歸零</li>
+              </ul>
+              <p className="text-[11px] text-zinc-500 pt-1">
+                * 個人頭像與自訂暱稱將會妥善保留。
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsResetConfirmOpen(false)}
+                disabled={isResetting}
+                className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 text-xs font-semibold text-zinc-300 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmResetAll}
+                disabled={isResetting}
+                className="px-5 py-2 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all disabled:opacity-50"
+              >
+                {isResetting ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>{isResetting ? '初始化中...' : '確認全部初始化'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

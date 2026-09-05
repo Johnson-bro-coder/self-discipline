@@ -58,6 +58,17 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
   const currentMonthUnsettledStats = profiles.map((p) => {
     const userTasks = tasks.filter((t) => t.user_id === p.id);
     
+    // 若該成員完全無任何任務，直接歸零
+    if (userTasks.length === 0) {
+      return {
+        profile: p,
+        taskFailedDaysCount: 0,
+        preplanFailedDaysCount: 0,
+        totalViolations: 0,
+        estimatedFine: 0,
+      };
+    }
+
     // 取出所有已有任務的日期
     const distinctDates = Array.from(
       new Set(userTasks.map((t) => t.target_date))
@@ -93,13 +104,16 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
       }
     });
 
-    // 針對今天檢查明日預排（若今天已過 00:00 尚未排滿 2 項，列入預估違規）
-    const tomorrowTasks = userTasks.filter(
-      (t) => t.category === 'daily' && t.target_date > todayDateStr
-    );
-    const todayPreplanFailed = tomorrowTasks.length < 2;
-    if (todayPreplanFailed) {
-      preplanFailedDaysCount += 1;
+    // 針對今天檢查明日預排（若今天有排任務，但尚未排滿明日 2 項，列入預估違規）
+    const hasTodayTasks = userTasks.some((t) => t.target_date === todayDateStr);
+    if (hasTodayTasks) {
+      const tomorrowTasks = userTasks.filter(
+        (t) => t.category === 'daily' && t.target_date > todayDateStr
+      );
+      const todayPreplanFailed = tomorrowTasks.length < 2;
+      if (todayPreplanFailed) {
+        preplanFailedDaysCount += 1;
+      }
     }
 
     const totalViolations = taskFailedDaysCount + preplanFailedDaysCount;
