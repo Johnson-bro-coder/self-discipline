@@ -13,6 +13,7 @@ import {
   skipTaskWithReason,
   getMonthlyBills,
   runMonthlySettlementRpc,
+  checkAndAutoArchiveMonthlyBills,
   isSupabaseConfigured,
   createDailyRoutine,
   updateDailyRoutine,
@@ -29,7 +30,7 @@ import { SettingsView } from './components/SettingsView';
 import { ProofModal } from './components/ProofModal';
 import { SkipReasonModal } from './components/SkipReasonModal';
 import { ImagePreviewModal } from './components/ImagePreviewModal';
-import { Terminal, Clock, Flame, Database } from 'lucide-react';
+import { Terminal, Clock, Flame, Database, ChevronsUpDown } from 'lucide-react';
 
 const USER_ID_STORAGE_KEY = 'cyber_discipline_user_id';
 
@@ -61,6 +62,9 @@ export const App: React.FC = () => {
   // 1. 初始化資料
   const reloadData = async () => {
     try {
+      // 自動檢查歷史月結帳單歸檔 (每月 1 號或有未歸檔資料時自動結算)
+      await checkAndAutoArchiveMonthlyBills();
+
       const activeId = currentUserId || localStorage.getItem(USER_ID_STORAGE_KEY);
       if (activeId) {
         // 確保常駐必做序列在今日有對應任務（保留項目、重置狀態為未打卡）
@@ -162,11 +166,15 @@ export const App: React.FC = () => {
     return total;
   }, [tasks, profiles, todayDateStr]);
 
-  // 登入身分選擇
-  const handleSelectUser = (userId: string) => {
+  // 登入 / 切換身分選擇
+  const handleSelectUser = async (userId: string) => {
     setCurrentUserId(userId);
     localStorage.setItem(USER_ID_STORAGE_KEY, userId);
     setIsAuthModalOpen(false);
+    // 確保切換後的成員當日常駐必做序列存在
+    await ensureDailyRoutinesForDate(userId, todayDateStr);
+    const updatedTasks = await getTasks();
+    setTasks(updatedTasks);
   };
 
   // 登出
@@ -343,20 +351,24 @@ export const App: React.FC = () => {
 
           {currentProfile ? (
             <button
-              onClick={() => setActiveTab('settings')}
-              className="flex items-center gap-2.5 p-1 pr-3.5 rounded-full bg-white/[0.05] border border-white/15 hover:border-white/40 transition-all group"
+              type="button"
+              onClick={() => setIsAuthModalOpen(true)}
+              className="flex items-center gap-2 p-1 pr-3 rounded-full bg-white/[0.05] border border-white/15 hover:border-white/40 hover:bg-white/10 transition-all group cursor-pointer shadow-sm"
+              title="點擊直接切換操作者帳號"
             >
               <img
                 src={currentProfile.avatar_url}
                 alt={currentProfile.username}
-                className="w-7 h-7 rounded-full object-cover border border-white/20"
+                className="w-7 h-7 rounded-full object-cover border border-white/20 group-hover:border-white transition-colors"
               />
               <span className="text-xs font-sans font-semibold text-white group-hover:text-white">
                 {currentProfile.username}
               </span>
+              <ChevronsUpDown className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white transition-colors" />
             </button>
           ) : (
             <button
+              type="button"
               onClick={() => setIsAuthModalOpen(true)}
               className="px-4 py-1.5 rounded-full bg-white text-black font-semibold text-xs shadow-sm hover:bg-zinc-200 transition-colors"
             >
@@ -440,7 +452,9 @@ export const App: React.FC = () => {
       <AuthModal
         isOpen={isAuthModalOpen}
         profiles={profiles}
+        currentProfile={currentProfile}
         onSelectUser={handleSelectUser}
+        onClose={() => setIsAuthModalOpen(false)}
       />
 
       <ProofModal

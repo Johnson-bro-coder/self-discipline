@@ -13,6 +13,7 @@ import {
   Sparkles,
   CalendarCheck,
   CalendarX,
+  CheckCircle,
 } from 'lucide-react';
 
 interface TreasuryViewProps {
@@ -403,52 +404,85 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
         </div>
       </div>
 
-      {/* 4. 歷史月結帳單紀錄 (Monthly Bills) 與模擬結算 */}
+      {/* 4. 歷史月結帳單紀錄 (Monthly Bills) 與自動/手動歸檔 */}
       <div className="p-6 ios-glass-card">
-        <div className="flex items-center justify-between pb-3 mb-4 border-b border-white/[0.08]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-4 border-b border-white/[0.08] gap-2">
           <div className="flex items-center gap-2">
             <Receipt className="w-4 h-4 text-white" />
             <h4 className="text-sm font-bold text-white uppercase tracking-wider">
               歷史月結帳單歸檔 // BILLING ARCHIVE
             </h4>
+            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-white/10 text-white border border-white/15">
+              <CalendarCheck className="w-3 h-3 text-white" />
+              <span>每月 1 號 00:00 自動歸檔</span>
+            </span>
           </div>
 
           <button
             type="button"
             onClick={onRunMonthlySettlement}
             disabled={isAuditing}
-            className="px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-mono text-white flex items-center gap-1.5 transition-all disabled:opacity-40"
-            title="手動模擬觸發每月 1 號 00:00 月結排程"
+            className="px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-mono text-white flex items-center gap-1.5 transition-all disabled:opacity-40 self-start sm:self-auto cursor-pointer"
+            title="手動模擬或重新執行每月 1 號 00:00 歸檔排程"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isAuditing ? 'animate-spin' : ''}`} />
-            <span>模擬 1 號月結排程</span>
+            <span>模擬 / 執行 1 號歸檔</span>
           </button>
         </div>
 
         {monthlyBills.length === 0 ? (
-          <div className="py-8 text-center text-zinc-500 font-mono text-xs">
-            - 暫無月結帳單紀錄，系統將於每月 1 號自動產出 -
+          <div className="py-10 text-center space-y-2 font-mono">
+            <div className="text-zinc-500 text-xs">
+              - 暫無月結帳單紀錄 -
+            </div>
+            <p className="text-[11px] text-zinc-500">
+              系統會在每月 1 號 00:00 自動統計整月違規並寫入此處歸檔，亦可隨時點擊上方按鈕進行模擬。
+            </p>
           </div>
         ) : (
-          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+          <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
             {monthlyBills.map((bill) => {
               const billedUser = profiles.find((p) => p.id === bill.user_id);
 
               return (
                 <div
                   key={bill.id}
-                  className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.08] flex items-center justify-between text-xs font-mono"
+                  className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.08] hover:border-white/20 hover:bg-white/[0.04] transition-all flex items-center justify-between text-xs font-mono"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-zinc-400">月份: {bill.billing_month.slice(0, 7)}</span>
-                    <span className="text-white font-bold">{billedUser?.username}</span>
-                    <span className="text-zinc-500">
-                      (違規天數/次數: {bill.failed_tasks_count} 次)
-                    </span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {billedUser && (
+                      <img
+                        src={billedUser.avatar_url}
+                        alt={billedUser.username}
+                        className="w-8 h-8 rounded-full object-cover border border-white/20 flex-shrink-0"
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-white font-bold truncate">
+                          {billedUser?.username || '成員'}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-zinc-300 border border-white/10">
+                          {bill.billing_month.slice(0, 7)} 結算
+                        </span>
+                        <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-zinc-400">
+                          <CheckCircle className="w-3 h-3 text-white" />
+                          已歸檔
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-zinc-400 mt-0.5">
+                        整月累計未打卡/預排不足違規: <span className="text-white font-semibold">{bill.failed_tasks_count}</span> 次
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="text-white font-bold">
-                    +${bill.fine_amount} NTD
+                  <div className="text-right flex-shrink-0 ml-3">
+                    <div className="text-sm font-bold text-white tracking-tight">
+                      +${bill.fine_amount.toLocaleString()} <span className="text-[10px] text-zinc-400 font-normal">NTD</span>
+                    </div>
+                    <div className="text-[10px] text-zinc-500 mt-0.5">
+                      {bill.created_at ? new Date(bill.created_at).toLocaleDateString('zh-TW') : '已歸檔'}
+                    </div>
                   </div>
                 </div>
               );

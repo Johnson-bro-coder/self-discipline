@@ -471,32 +471,53 @@ export const getMonthlyBills = async (): Promise<MonthlyBill[]> => {
 /**
  * 執行每月 1 號月結算：
  * 統整上月未打卡且未豁免的違規任務，產出月結帳單，累加至 profiles.total_paid_fine
+ * 具備防重入檢查 (Idempotent)，若該月已結算且未帶 force 標記則不會重複扣款
  */
-export const runMonthlySettlementRpc = async (): Promise<{ success: boolean; message: string }> => {
+export const runMonthlySettlementRpc = async (
+  force: boolean = false
+): Promise<{ success: boolean; message: string }> => {
+  const now = new Date();
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const billingMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}-01`;
+
+  // 1. 優先嘗試執行 Supabase PostgreSQL RPC (由資料庫交易保證原子性)
   if (isSupabaseConfigured() && supabase) {
     try {
       const { error } = await supabase.rpc('monthly_settlement_audit');
-      if (!error) return { success: true, message: 'Supabase 月結算排程執行成功！' };
+      if (!error) {
+        return {
+          success: true,
+          message: `Supabase 伺服器排程成功歸檔 ${billingMonthStr.slice(0, 7)} 月結帳單！`,
+        };
+      }
+      console.warn('Supabase monthly_settlement_audit RPC returned error, using fallback logic', error);
     } catch (err) {
-      console.warn('Supabase monthly_settlement_audit RPC error, running local fallback', err);
+      console.warn('Supabase monthly_settlement_audit RPC error, running direct table fallback', err);
     }
   }
 
-  // 本地模擬月結算
+  // 2. 本地 / 直接資料表排程回退機制
   const profiles = await getProfiles();
   const tasks = await getTasks();
   const bills = await getMonthlyBills();
 
-  const now = new Date();
-  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const billingMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}-01`;
+  // 檢查該月是否已歸檔過
+  const alreadySettled = bills.some((b) => b.billing_month.startsWith(billingMonthStr.slice(0, 7)));
+  if (alreadySettled && !force) {
+    return {
+      success: true,
+      message: `${billingMonthStr.slice(0, 7)} 月結帳單先前已完成歸檔，未重複扣款。`,
+    };
+  }
 
   const newBills: MonthlyBill[] = [];
   let totalNewFine = 0;
 
   const updatedProfiles = profiles.map((p) => {
     // 找出上個月所有任務
-    const userTasks = tasks.filter((t) => t.user_id === p.id);
+    const userTasks = tasks.filter(
+      (t) => t.user_id === p.id && t.target_date.startsWith(billingMonthStr.slice(0, 7))
+    );
     
     // 取得所有任務的日期集合
     const targetDates = Array.from(new Set(userTasks.map((t) => t.target_date)));
@@ -520,7 +541,9 @@ export const runMonthlySettlementRpc = async (): Promise<{ success: boolean; mes
       const d = new Date(dateStr);
       d.setDate(d.getDate() + 1);
       const nextDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const nextDayPlans = userTasks.filter((t) => t.target_date === nextDateStr && t.category === 'daily');
+      const nextDayPlans = tasks.filter(
+        (t) => t.user_id === p.id && t.target_date === nextDateStr && t.category === 'daily'
+      );
       if (nextDayPlans.length < 2) {
         preplanFailedDays += 1;
       }
@@ -530,36 +553,105 @@ export const runMonthlySettlementRpc = async (): Promise<{ success: boolean; mes
     const fine = totalViolations * 100;
     totalNewFine += fine;
 
-    if (totalViolations > 0) {
-      newBills.push({
-        id: 'bill_' + Math.random().toString(36).substring(2, 9),
-        user_id: p.id,
-        billing_month: billingMonthStr,
-        failed_tasks_count: totalViolations,
-        fine_amount: fine,
-        created_at: new Date().toISOString(),
-      });
-    }
+    newBills.push({
+      id: 'bill_' + Math.random().toString(36).substring(2, 9),
+      user_id: p.id,
+      billing_month: billingMonthStr,
+      failed_tasks_count: totalViolations,
+      fine_amount: fine,
+      created_at: new Date().toISOString(),
+    });
 
     return {
       ...p,
-      total_paid_fine: p.total_paid_fine + fine,
+      total_paid_fine: (p.total_paid_fine || 0) + fine,
     };
   });
 
-  // 更新任務狀態為 settled
-  const updatedTasks = tasks.map((t) => ({
-    ...t,
-    status: t.is_completed || t.is_skipped ? ('settled' as const) : ('failed' as const),
-  }));
+  // 3. 若有連接 Supabase，將資料寫入雲端 tables
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      // 寫入 monthly_bills
+      for (const bill of newBills) {
+        await supabase.from('monthly_bills').insert({
+          user_id: bill.user_id,
+          billing_month: bill.billing_month,
+          failed_tasks_count: bill.failed_tasks_count,
+          fine_amount: bill.fine_amount,
+        });
+      }
 
-  const mergedBills = [...newBills, ...bills];
+      // 更新 profiles 罰金
+      for (const p of updatedProfiles) {
+        await supabase
+          .from('profiles')
+          .update({ total_paid_fine: p.total_paid_fine })
+          .eq('id', p.id);
+      }
+
+      // 更新上月任務為 settled
+      await supabase
+        .from('tasks')
+        .update({ status: 'settled' })
+        .gte('target_date', billingMonthStr)
+        .lt('target_date', `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`);
+    } catch (err) {
+      console.warn('Error syncing monthly bills fallback to Supabase table:', err);
+    }
+  }
+
+  // 4. 更新任務狀態為 settled
+  const updatedTasks = tasks.map((t) => {
+    if (t.target_date.startsWith(billingMonthStr.slice(0, 7))) {
+      return {
+        ...t,
+        status: (t.is_completed || t.is_skipped ? 'settled' : 'failed') as Task['status'],
+      };
+    }
+    return t;
+  });
+
+  const mergedBills = [...newBills, ...bills.filter((b) => !b.billing_month.startsWith(billingMonthStr.slice(0, 7)))];
   localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(updatedProfiles));
   localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(updatedTasks));
   localStorage.setItem(STORAGE_KEY_BILLS, JSON.stringify(mergedBills));
 
   return {
     success: true,
-    message: `月結算完成！產出 ${newBills.length} 筆帳單，共累計新增 $${totalNewFine} 元罰金至公費總池。`,
+    message: `月結算完成！已自動歸檔 ${billingMonthStr.slice(0, 7)} 月結帳單，共累計新增 $${totalNewFine} 元罰金至公費總池。`,
   };
+};
+
+/**
+ * 自動檢查並歸檔歷史月結帳單：
+ * 當今天日期在每月 1 號 (或歷史月份有未歸檔的資料) 時，自動執行結算歸檔
+ */
+export const checkAndAutoArchiveMonthlyBills = async (): Promise<{
+  archived: boolean;
+  message?: string;
+}> => {
+  try {
+    const bills = await getMonthlyBills();
+    const tasks = await getTasks();
+
+    const now = new Date();
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthPrefix = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+
+    // 檢查上個月是否已有歸檔帳單
+    const isArchived = bills.some((b) => b.billing_month.startsWith(lastMonthPrefix));
+
+    // 檢查上個月是否有任何相關任務
+    const hasLastMonthTasks = tasks.some((t) => t.target_date.startsWith(lastMonthPrefix));
+
+    // 如果上個月未歸檔，且今天為 1 號 (或者上個月有任務需要結算歸檔)
+    if (!isArchived && (now.getDate() === 1 || hasLastMonthTasks)) {
+      console.log(`[Auto-Archive] 檢測到 ${lastMonthPrefix} 帳單尚未歸檔，自動執行 1 號結算排程...`);
+      const res = await runMonthlySettlementRpc(false);
+      return { archived: res.success, message: res.message };
+    }
+  } catch (err) {
+    console.warn('[Auto-Archive] 自動月結歸檔檢查異常:', err);
+  }
+  return { archived: false };
 };

@@ -65,6 +65,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_user_date ON public.tasks(user_id, target_d
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON public.tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_routine ON public.tasks(routine_id);
 CREATE INDEX IF NOT EXISTS idx_monthly_bills_user ON public.monthly_bills(user_id, billing_month);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_monthly_bills_user_month ON public.monthly_bills(user_id, billing_month);
 
 -- 6. 啟用 RLS 與存取規則 (允許 anon 角色讀寫)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -114,6 +115,7 @@ USING (bucket_id = 'task-proofs');
 -- 規則：
 -- 1. 當日任務以及常駐每日必做有任一個沒完成（無論幾個）該日均只罰 100 元
 -- 2. 明日預排序列未在規定時間內排完 (不足 2 項) 該日亦罰 100 元
+-- 3. 具備防重入檢查 (Idempotent)，若該月帳單已歸檔則不會重複扣款
 CREATE OR REPLACE FUNCTION public.monthly_settlement_audit()
 RETURNS VOID
 LANGUAGE plpgsql
@@ -130,6 +132,7 @@ DECLARE
     v_penalty_amount INT;
     v_day_uncompleted_cnt INT;
     v_tomorrow_plan_cnt INT;
+    v_already_settled BOOLEAN;
 BEGIN
     -- 以台北時間計算上個月初與本月初
     v_this_month_start := date_trunc('month', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei'))::DATE;
@@ -146,78 +149,105 @@ BEGIN
 
     -- 步驟 2: 遍歷每位成員，按「天」結算違規 (當日有任何任務未完成罰 100；預排不足 2 項罰 100)
     FOR u IN SELECT id, username FROM public.profiles LOOP
-        v_daily_failed_days := 0;
-        v_preplan_failed_days := 0;
+        -- 防重複檢查：若該使用者上月帳單已歸檔過，則跳過避免重複累加
+        SELECT EXISTS(
+            SELECT 1 FROM public.monthly_bills
+            WHERE user_id = u.id AND billing_month = v_last_month_start
+        ) INTO v_already_settled;
 
-        v_curr_date := v_last_month_start;
-        WHILE v_curr_date < v_this_month_start LOOP
-            -- A. 當日任務與常駐必做是否有任一未完成且未豁免 (無論幾個均算 1 次違規)
-            SELECT COUNT(*) INTO v_day_uncompleted_cnt
-            FROM public.tasks
-            WHERE user_id = u.id
-              AND target_date = v_curr_date
-              AND category IN ('daily', 'routine')
-              AND status = 'failed';
+        IF NOT v_already_settled THEN
+            v_daily_failed_days := 0;
+            v_preplan_failed_days := 0;
 
-            IF v_day_uncompleted_cnt > 0 THEN
-                v_daily_failed_days := v_daily_failed_days + 1;
+            v_curr_date := v_last_month_start;
+            WHILE v_curr_date < v_this_month_start LOOP
+                -- A. 當日任務與常駐必做是否有任一未完成且未豁免 (無論幾個均算 1 次違規)
+                SELECT COUNT(*) INTO v_day_uncompleted_cnt
+                FROM public.tasks
+                WHERE user_id = u.id
+                  AND target_date = v_curr_date
+                  AND category IN ('daily', 'routine')
+                  AND status = 'failed';
+
+                IF v_day_uncompleted_cnt > 0 THEN
+                    v_daily_failed_days := v_daily_failed_days + 1;
+                END IF;
+
+                -- B. 當日針對隔日之預排是否不足 2 項 (不足 2 項算 1 次違規)
+                SELECT COUNT(*) INTO v_tomorrow_plan_cnt
+                FROM public.tasks
+                WHERE user_id = u.id
+                  AND target_date = (v_curr_date + INTERVAL '1 day')::DATE
+                  AND category = 'daily';
+
+                IF v_tomorrow_plan_cnt < 2 THEN
+                    v_preplan_failed_days := v_preplan_failed_days + 1;
+                END IF;
+
+                v_curr_date := v_curr_date + INTERVAL '1 day';
+            END LOOP;
+
+            v_total_violations := v_daily_failed_days + v_preplan_failed_days;
+            v_penalty_amount := v_total_violations * 100;
+
+            -- 寫入月結帳單
+            INSERT INTO public.monthly_bills (
+                user_id,
+                billing_month,
+                failed_tasks_count,
+                fine_amount
+            )
+            VALUES (
+                u.id,
+                v_last_month_start,
+                v_total_violations,
+                v_penalty_amount
+            )
+            ON CONFLICT (user_id, billing_month) DO UPDATE
+            SET failed_tasks_count = EXCLUDED.failed_tasks_count,
+                fine_amount = EXCLUDED.fine_amount;
+
+            -- 累加已結算罰金至個人歷史紀錄
+            IF v_penalty_amount > 0 THEN
+                UPDATE public.profiles
+                SET total_paid_fine = total_paid_fine + v_penalty_amount
+                WHERE id = u.id;
             END IF;
 
-            -- B. 當日針對隔日之預排是否不足 2 項 (不足 2 項算 1 次違規)
-            SELECT COUNT(*) INTO v_tomorrow_plan_cnt
-            FROM public.tasks
+            -- 步驟 3: 將上個月的所有任務狀態轉為 settled
+            UPDATE public.tasks
+            SET status = 'settled'
             WHERE user_id = u.id
-              AND target_date = (v_curr_date + INTERVAL '1 day')::DATE
-              AND category = 'daily';
-
-            IF v_tomorrow_plan_cnt < 2 THEN
-                v_preplan_failed_days := v_preplan_failed_days + 1;
-            END IF;
-
-            v_curr_date := v_curr_date + INTERVAL '1 day';
-        END LOOP;
-
-        v_total_violations := v_daily_failed_days + v_preplan_failed_days;
-        v_penalty_amount := v_total_violations * 100;
-
-        -- 寫入月結帳單
-        INSERT INTO public.monthly_bills (
-            user_id,
-            billing_month,
-            failed_tasks_count,
-            fine_amount
-        )
-        VALUES (
-            u.id,
-            v_last_month_start,
-            v_total_violations,
-            v_penalty_amount
-        );
-
-        -- 累加已結算罰金至個人資料庫
-        IF v_penalty_amount > 0 THEN
-            UPDATE public.profiles
-            SET total_paid_fine = total_paid_fine + v_penalty_amount
-            WHERE id = u.id;
+              AND target_date >= v_last_month_start
+              AND target_date < v_this_month_start;
         END IF;
-
-        -- 步驟 3: 將上個月的所有任務狀態轉為 settled
-        UPDATE public.tasks
-        SET status = 'settled'
-        WHERE user_id = u.id
-          AND target_date >= v_last_month_start
-          AND target_date < v_this_month_start;
     END LOOP;
 END;
 $$;
 
--- 10. pg_cron 排程：每月 1 號台灣時間午夜 00:00 (UTC 前一日 16:00) 執行
-SELECT cron.unschedule(jobid) 
-FROM cron.job 
-WHERE jobname = 'monthly_settlement_audit';
+-- 10. 判斷是否為每月 1 號的檢查排程函數
+CREATE OR REPLACE FUNCTION public.check_and_run_monthly_settlement()
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    -- 判斷台灣時間當日是否為 1 號
+    IF EXTRACT(DAY FROM (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Taipei')) = 1 THEN
+        PERFORM public.monthly_settlement_audit();
+    END IF;
+END;
+$$;
 
-SELECT cron.schedule(
-    'monthly_settlement_audit',
-    '0 16 28-31 * *', -- 每月最後一天 UTC 16:00 (即台灣時間次月 1 號 00:00)
-    'SELECT public.monthly_settlement_audit();'
-);
+-- 11. pg_cron 排程：每天台灣時間午夜 00:00 (UTC 16:00) 執行檢查，若為每月 1 號則自動歸檔月結帳單
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+        PERFORM cron.unschedule(jobid) FROM cron.job WHERE jobname = 'monthly_settlement_audit';
+        PERFORM cron.schedule(
+            'monthly_settlement_audit',
+            '0 16 * * *', -- 每天 UTC 16:00 (台灣時間次日 00:00) 執行檢查，遇 1 號自動歸檔
+            'SELECT public.check_and_run_monthly_settlement();'
+        );
+    END IF;
+END $$;
