@@ -66,6 +66,9 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
         preplanFailedDaysCount: 0,
         totalViolations: 0,
         estimatedFine: 0,
+        todayTotalCount: 0,
+        todayUnfinishedCount: 0,
+        todayPreplanCount: 0,
       };
     }
 
@@ -77,10 +80,11 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
     let taskFailedDaysCount = 0;
     let preplanFailedDaysCount = 0;
 
-    // 檢查已過去的日子及今日
+    // 正式帳單罰款：僅結算「已過去之歷史日期（dateStr < todayDateStr）」
+    // 今日仍在進行中（午夜 23:59 截止倒數），白天絕不提前判處違規扣款！
     distinctDates.forEach((dateStr) => {
-      // 未來日期（如明日預排）尚未到期，絕不計入任務未完成違規
-      if (dateStr > todayDateStr) {
+      // 排除今日與未來日期
+      if (dateStr >= todayDateStr) {
         return;
       }
 
@@ -96,30 +100,26 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
       }
 
       // B. 明日預排檢查：若是過去的日期，檢查針對隔天是否有 >= 2 項 daily 預排
-      if (dateStr < todayDateStr) {
-        const [y, m, d] = dateStr.split('-').map(Number);
-        const nextDate = new Date(y, m - 1, d + 1);
-        const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
-        const nextDayPlans = userTasks.filter(
-          (t) => t.target_date === nextDateStr && t.category === 'daily'
-        );
-        if (nextDayPlans.length < 2) {
-          preplanFailedDaysCount += 1;
-        }
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const nextDate = new Date(y, m - 1, d + 1);
+      const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
+      const nextDayPlans = userTasks.filter(
+        (t) => t.target_date === nextDateStr && t.category === 'daily'
+      );
+      if (nextDayPlans.length < 2) {
+        preplanFailedDaysCount += 1;
       }
     });
 
-    // 針對今天檢查明日預排（若今天有排任務，但尚未排滿明日 2 項，列入預估違規）
-    const hasTodayTasks = userTasks.some((t) => t.target_date === todayDateStr);
-    if (hasTodayTasks) {
-      const tomorrowTasks = userTasks.filter(
-        (t) => t.category === 'daily' && t.target_date > todayDateStr
-      );
-      const todayPreplanFailed = tomorrowTasks.length < 2;
-      if (todayPreplanFailed) {
-        preplanFailedDaysCount += 1;
-      }
-    }
+    // 今日即時進行中狀態（用於畫面上顯示「進行中提醒」，不提前算入次月 1 號帳單）
+    const todayTasks = userTasks.filter(
+      (t) => t.target_date === todayDateStr && (t.category === 'daily' || t.category === 'routine')
+    );
+    const todayUnfinishedCount = todayTasks.filter((t) => !t.is_completed && !t.is_skipped).length;
+    const tomorrowTasks = userTasks.filter(
+      (t) => t.category === 'daily' && t.target_date > todayDateStr
+    );
+    const todayPreplanCount = tomorrowTasks.length;
 
     const totalViolations = taskFailedDaysCount + preplanFailedDaysCount;
     const estimatedFine = totalViolations * 100;
@@ -130,6 +130,9 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
       preplanFailedDaysCount,
       totalViolations,
       estimatedFine,
+      todayTotalCount: todayTasks.length,
+      todayUnfinishedCount,
+      todayPreplanCount,
     };
   });
 
@@ -313,7 +316,7 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {currentMonthUnsettledStats.map(({ profile, taskFailedDaysCount, preplanFailedDaysCount, estimatedFine }) => (
+          {currentMonthUnsettledStats.map(({ profile, taskFailedDaysCount, preplanFailedDaysCount, estimatedFine, todayTotalCount, todayUnfinishedCount, todayPreplanCount }) => (
             <div
               key={profile.id}
               className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.08] hover:border-white/20 transition-all flex flex-col justify-between space-y-3"
@@ -341,7 +344,21 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
                 </div>
               </div>
 
-              {/* 違規明細拆解 */}
+              {/* 今日進行中動態狀態 (23:59 截止前即時提醒) */}
+              <div className="px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05] flex items-center justify-between text-[10px] font-mono">
+                <span className="text-zinc-400">今日倒數進行中:</span>
+                <div className="flex items-center gap-2">
+                  <span className={todayUnfinishedCount > 0 ? "text-amber-400 font-medium" : "text-emerald-400 font-medium"}>
+                    {todayTotalCount === 0 ? "今日無任務" : todayUnfinishedCount > 0 ? `${todayUnfinishedCount} 項待打卡` : "今日全打卡 ✓"}
+                  </span>
+                  <span className="text-zinc-600">|</span>
+                  <span className={todayPreplanCount >= 2 ? "text-emerald-400 font-medium" : "text-amber-400 font-medium"}>
+                    明日預排 {todayPreplanCount}/2
+                  </span>
+                </div>
+              </div>
+
+              {/* 違規明細拆解 (過去已結算之正式違規) */}
               <div className="pt-2.5 border-t border-white/[0.06] grid grid-cols-2 gap-2 text-[11px] font-mono text-zinc-400">
                 <div className="flex items-center gap-1.5">
                   <CalendarX className="w-3.5 h-3.5 text-zinc-400" />

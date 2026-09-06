@@ -143,8 +143,8 @@ export const App: React.FC = () => {
 
       const distinctDates = Array.from(new Set(userTasks.map((t) => t.target_date)));
       distinctDates.forEach((dateStr) => {
-        // 未來日期（如明日預排）尚未到期，絕不計入任務未完成違規
-        if (dateStr > todayDateStr) {
+        // 僅統計過去已截止日期 (dateStr < todayDateStr)，今日進行中不提前記為違規
+        if (dateStr >= todayDateStr) {
           return;
         }
 
@@ -154,24 +154,15 @@ export const App: React.FC = () => {
         if (dayTasks.some((t) => !t.is_completed && !t.is_skipped)) {
           total += 1;
         }
-        if (dateStr < todayDateStr) {
-          const [y, m, d] = dateStr.split('-').map(Number);
-          const nextDate = new Date(y, m - 1, d + 1);
-          const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
-          const nextDayPlans = userTasks.filter((t) => t.target_date === nextDateStr && t.category === 'daily');
-          if (nextDayPlans.length < 2) {
-            total += 1;
-          }
-        }
-      });
 
-      const hasTodayTasks = userTasks.some((t) => t.target_date === todayDateStr);
-      if (hasTodayTasks) {
-        const tomorrowTasks = userTasks.filter((t) => t.category === 'daily' && t.target_date > todayDateStr);
-        if (tomorrowTasks.length < 2) {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const nextDate = new Date(y, m - 1, d + 1);
+        const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
+        const nextDayPlans = userTasks.filter((t) => t.target_date === nextDateStr && t.category === 'daily');
+        if (nextDayPlans.length < 2) {
           total += 1;
         }
-      }
+      });
     });
     return total;
   }, [tasks, profiles, todayDateStr]);
