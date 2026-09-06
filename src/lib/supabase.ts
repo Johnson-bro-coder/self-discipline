@@ -589,9 +589,9 @@ export const runMonthlySettlementRpc = async (
       }
 
       // 2. 檢查該日針對隔日的預排是否不足 2 項 (不足 2 項算 1 次違規)
-      const d = new Date(dateStr);
-      d.setDate(d.getDate() + 1);
-      const nextDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const nextDate = new Date(y, m - 1, d + 1);
+      const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
       const nextDayPlans = tasks.filter(
         (t) => t.user_id === p.id && t.target_date === nextDateStr && t.category === 'daily'
       );

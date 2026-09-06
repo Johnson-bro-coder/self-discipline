@@ -143,6 +143,11 @@ export const App: React.FC = () => {
 
       const distinctDates = Array.from(new Set(userTasks.map((t) => t.target_date)));
       distinctDates.forEach((dateStr) => {
+        // 未來日期（如明日預排）尚未到期，絕不計入任務未完成違規
+        if (dateStr > todayDateStr) {
+          return;
+        }
+
         const dayTasks = userTasks.filter(
           (t) => t.target_date === dateStr && (t.category === 'daily' || t.category === 'routine')
         );
@@ -150,9 +155,9 @@ export const App: React.FC = () => {
           total += 1;
         }
         if (dateStr < todayDateStr) {
-          const d = new Date(dateStr);
-          d.setDate(d.getDate() + 1);
-          const nextDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          const [y, m, d] = dateStr.split('-').map(Number);
+          const nextDate = new Date(y, m - 1, d + 1);
+          const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
           const nextDayPlans = userTasks.filter((t) => t.target_date === nextDateStr && t.category === 'daily');
           if (nextDayPlans.length < 2) {
             total += 1;
