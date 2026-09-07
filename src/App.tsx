@@ -288,9 +288,9 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-screen bg-black text-white flex flex-col font-sans select-none relative ios-glass-bg">
+    <div className="h-screen h-[100dvh] w-screen bg-black text-white flex flex-col font-sans select-none relative ios-glass-bg overflow-hidden">
       {/* 1. 頂部 iOS 液態玻璃列 */}
-      <header className="h-16 px-6 bg-black/40 border-b border-white/[0.08] backdrop-blur-2xl flex items-center justify-between shrink-0 z-30 sticky top-0">
+      <header className="px-6 bg-black/40 border-b border-white/[0.08] backdrop-blur-2xl flex items-center justify-between shrink-0 z-30 sticky top-0 ios-header-safe">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white">
             <Flame className="w-4 h-4 text-white" />
@@ -367,7 +367,7 @@ export const App: React.FC = () => {
       </header>
 
       {/* 2. 主視圖內容區域 (根據 BottomNav 切換) */}
-      <main className="flex-1 p-6 overflow-y-auto min-h-0">
+      <main className="flex-1 px-4 py-6 md:px-6 overflow-y-auto min-h-0 main-content-scroll">
         {isLoading || !groupSettings || !currentProfile ? (
           <div className="h-full flex flex-col items-center justify-center text-zinc-500 font-mono text-sm py-20">
             <Terminal className="w-8 h-8 text-white animate-pulse mb-3" />

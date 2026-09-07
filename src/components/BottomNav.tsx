@@ -49,7 +49,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   unsettledViolationsCount,
 }) => {
   return (
-    <nav className="fixed bottom-5 left-1/2 -translate-x-1/2 w-[92%] max-w-lg h-16 rounded-full ios-glass-dock px-2 flex items-center justify-around z-40 select-none shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
+    <nav className="fixed ios-bottom-nav left-1/2 -translate-x-1/2 w-[92%] max-w-lg h-16 rounded-full ios-glass-dock px-2 flex items-center justify-around z-40 select-none shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
       {NAV_ITEMS.map((item) => {
         const isActive = activeTab === item.id;
         const Icon = item.icon;

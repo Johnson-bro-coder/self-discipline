@@ -102,3 +102,19 @@
   border-color: rgba(255, 255, 255, 0.15);
   box-shadow: 0 0 20px -3px rgba(255, 255, 255, 0.06);
 }
+
+/* 避開底部浮動導覽列與 iOS 虛擬 Home 鍵的安全距離 */
+.main-content-scroll {
+  padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* 底部浮動導覽列與 iOS 安全邊距 */
+.ios-bottom-nav {
+  bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* 頂部 Header 與 iOS 動態島/瀏海的安全邊距 */
+.ios-header-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(4rem + env(safe-area-inset-top, 0px));
+}

@@ -54,7 +54,7 @@ export const WeeklyMatrix: React.FC<WeeklyMatrixProps> = ({
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto flex flex-col h-full select-none animate-fadeIn pb-24 space-y-6">
+    <div className="w-full max-w-5xl mx-auto flex flex-col min-h-full select-none animate-fadeIn space-y-6">
       {/* 標頭 (iOS 液態玻璃頂部卡) */}
       <div className="p-6 ios-glass-card">
         <div className="flex items-center justify-between">

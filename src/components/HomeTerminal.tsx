@@ -128,7 +128,7 @@ export const HomeTerminal: React.FC<HomeTerminalProps> = ({
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto flex flex-col h-full select-none animate-fadeIn pb-24 space-y-6">
+    <div className="w-full max-w-4xl mx-auto flex flex-col min-h-full select-none animate-fadeIn space-y-6">
       {/* 1. 操作者終端頂部資訊卡 (iOS 液態玻璃風格) */}
       <div className="p-6 ios-glass-card relative overflow-hidden">
         <div className="flex items-center justify-between">

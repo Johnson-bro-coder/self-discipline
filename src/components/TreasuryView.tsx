@@ -150,7 +150,7 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto flex flex-col h-full select-none animate-fadeIn pb-24 space-y-6">
+    <div className="w-full max-w-5xl mx-auto flex flex-col min-h-full select-none animate-fadeIn space-y-6">
       {/* 1. 公費總池與共同夢想標竿 (iOS 液態玻璃雙卡佈局) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* 公費總額玻璃卡 */}
