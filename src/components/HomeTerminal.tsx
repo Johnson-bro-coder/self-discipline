@@ -152,9 +152,6 @@ export const HomeTerminal: React.FC<HomeTerminalProps> = ({
               </div>
               <div className="text-xs font-mono text-zinc-400 mt-1 flex items-center gap-3">
                 <span>
-                  UUID: <span className="text-zinc-500">{currentProfile.id.slice(0, 8)}...</span>
-                </span>
-                <span>
                   累計罰金儲備: <span className="text-white font-semibold">${currentProfile.total_paid_fine}</span> NTD
                 </span>
               </div>
