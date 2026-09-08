@@ -1,6 +1,6 @@
 # ⚡ Trio Discipline & Treasury OS (好友共同自律與公費懲罰系統)
 
-專為 **Johnson、nigga、shorty** 三人打造的 Desktop-First 桌機全螢幕自律儀表板與公費懲罰金庫系統。
+專為 **Johnson、Jason、Willy** 三人打造的 Desktop-First 桌機全螢幕自律儀表板與公費懲罰金庫系統。
 
 ---
 
