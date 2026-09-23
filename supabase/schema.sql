@@ -173,12 +173,13 @@ BEGIN
                     v_daily_failed_days := v_daily_failed_days + 1;
                 END IF;
 
-                -- B. 當日針對隔日之預排是否不足 2 項 (不足 2 項算 1 次違規)
+                -- B. 當日針對隔日之預排是否不足 2 項 (建立時間必須在當日 23:59:59 台北時間前，防隔日洗白)
                 SELECT COUNT(*) INTO v_tomorrow_plan_cnt
                 FROM public.tasks
                 WHERE user_id = u.id
                   AND target_date = (v_curr_date + INTERVAL '1 day')::DATE
-                  AND category = 'daily';
+                  AND category = 'daily'
+                  AND created_at <= (v_curr_date || ' 23:59:59.999+08')::TIMESTAMPTZ;
 
                 IF v_tomorrow_plan_cnt < 2 THEN
                     v_preplan_failed_days := v_preplan_failed_days + 1;

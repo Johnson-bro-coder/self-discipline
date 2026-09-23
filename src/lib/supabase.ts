@@ -270,10 +270,17 @@ export const updateDailyRoutine = async (routineId: string, newTitle: string): P
 };
 
 export const removeDailyRoutine = async (routineId: string): Promise<boolean> => {
+  const todayStr = getTodayDateStr();
   if (isSupabaseConfigured() && supabase) {
     try {
       await supabase.from('daily_routines').delete().eq('id', routineId);
-      await supabase.from('tasks').delete().eq('routine_id', routineId);
+      // 僅刪除今日與未來未打卡的 routine 任務，保留歷史已過去任務與已打卡記錄 (避免歷史違規被篡改抹除)
+      await supabase
+        .from('tasks')
+        .delete()
+        .eq('routine_id', routineId)
+        .gte('target_date', todayStr)
+        .eq('is_completed', false);
     } catch (err) {
       console.warn('Supabase delete routine error, deleting locally', err);
     }
@@ -283,9 +290,14 @@ export const removeDailyRoutine = async (routineId: string): Promise<boolean> =>
   const filteredRoutines = routines.filter((r) => r.id !== routineId);
   localStorage.setItem(STORAGE_KEY_ROUTINES, JSON.stringify(filteredRoutines));
 
-  // 同步刪除今日尚未打卡的 task
+  // 本機同步修正：保留歷史已過去任務或已完成任務，只刪除今日/未來未完成者
   const tasks = await getTasks();
-  const filteredTasks = tasks.filter((t) => t.routine_id !== routineId);
+  const filteredTasks = tasks.filter((t) => {
+    if (t.routine_id === routineId && t.target_date >= todayStr && !t.is_completed) {
+      return false;
+    }
+    return true;
+  });
   localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(filteredTasks));
 
   return true;
@@ -570,8 +582,13 @@ export const runMonthlySettlementRpc = async (
       (t) => t.user_id === p.id && t.target_date.startsWith(billingMonthStr.slice(0, 7))
     );
     
-    // 取得所有任務的日期集合
-    const targetDates = Array.from(new Set(userTasks.map((t) => t.target_date)));
+    // 取得結算月份的整月完整連續日曆日期 (不漏掉整日無排任務的天數)
+    const [by, bm] = billingMonthStr.split('-').map(Number);
+    const lastDayOfMonth = new Date(by, bm, 0).getDate();
+    const targetDates: string[] = [];
+    for (let dayNum = 1; dayNum <= lastDayOfMonth; dayNum++) {
+      targetDates.push(`${by}-${String(bm).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`);
+    }
     
     let dailyFailedDays = 0;
     let preplanFailedDays = 0;
@@ -588,13 +605,20 @@ export const runMonthlySettlementRpc = async (
         }
       }
 
-      // 2. 檢查該日針對隔日的預排是否不足 2 項 (不足 2 項算 1 次違規)
+      // 2. 檢查該日針對隔日的預排是否不足 2 項 (嚴格限制必須在當日 23:59:59 截止前建立)
       const [y, m, d] = dateStr.split('-').map(Number);
       const nextDate = new Date(y, m - 1, d + 1);
       const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
-      const nextDayPlans = tasks.filter(
-        (t) => t.user_id === p.id && t.target_date === nextDateStr && t.category === 'daily'
-      );
+      const deadlineTimestamp = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
+
+      const nextDayPlans = tasks.filter((t) => {
+        if (t.user_id !== p.id || t.target_date !== nextDateStr || t.category !== 'daily') return false;
+        if (t.created_at) {
+          return new Date(t.created_at).getTime() <= deadlineTimestamp;
+        }
+        return true;
+      });
+
       if (nextDayPlans.length < 2) {
         preplanFailedDays += 1;
       }

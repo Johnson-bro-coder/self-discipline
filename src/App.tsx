@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NavTab, Profile, Task, GroupSettings, MonthlyBill, DayOfWeek } from './types/database';
+import { NavTab, Profile, Task, GroupSettings, MonthlyBill, DayOfWeek, DailyRoutine } from './types/database';
 import {
   getProfiles,
   updateProfile,
@@ -14,6 +14,7 @@ import {
   getMonthlyBills,
   checkAndAutoArchiveMonthlyBills,
   isSupabaseConfigured,
+  getDailyRoutines,
   createDailyRoutine,
   updateDailyRoutine,
   removeDailyRoutine,
@@ -21,6 +22,7 @@ import {
   resetAllTasksAndFines,
 } from './lib/supabase';
 import { getTodayDateStr, getTomorrowDateStr } from './lib/mockData';
+import { calculateUnsettledViolations } from './lib/violationAudit';
 import { BottomNav } from './components/BottomNav';
 import { AuthModal } from './components/AuthModal';
 import { HomeTerminal } from './components/HomeTerminal';
@@ -44,6 +46,7 @@ export const App: React.FC = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [groupSettings, setGroupSettings] = useState<GroupSettings | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [dailyRoutines, setDailyRoutines] = useState<DailyRoutine[]>([]);
   const [monthlyBills, setMonthlyBills] = useState<MonthlyBill[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -64,21 +67,24 @@ export const App: React.FC = () => {
       // 自動檢查歷史月結帳單歸檔 (每月 1 號或有未歸檔資料時自動結算)
       await checkAndAutoArchiveMonthlyBills();
 
-      const activeId = currentUserId || localStorage.getItem(USER_ID_STORAGE_KEY);
-      if (activeId) {
-        // 確保常駐必做序列在今日有對應任務（保留項目、重置狀態為未打卡）
-        await ensureDailyRoutinesForDate(activeId, todayDateStr);
-      }
-
-      const [fetchedProfiles, fetchedGroup, fetchedTasks, fetchedBills] = await Promise.all([
+      const [fetchedProfiles, fetchedGroup, fetchedBills, fetchedRoutines] = await Promise.all([
         getProfiles(),
         getGroupSettings(),
-        getTasks(),
         getMonthlyBills(),
+        getDailyRoutines(),
       ]);
+
+      // 為所有成員確保今日常駐必做序列存在 (避免未開 App 的成員缺卡漏審)
+      for (const p of fetchedProfiles) {
+        await ensureDailyRoutinesForDate(p.id, todayDateStr);
+      }
+
+      const fetchedTasks = await getTasks();
+
       setProfiles(fetchedProfiles);
       setGroupSettings(fetchedGroup);
       setTasks(fetchedTasks);
+      setDailyRoutines(fetchedRoutines);
       setMonthlyBills(fetchedBills);
     } catch (err) {
       console.error('Data reload error:', err);
@@ -134,38 +140,12 @@ export const App: React.FC = () => {
   const currentProfile =
     profiles.find((p) => p.id === currentUserId) || profiles[0] || null;
 
-  // 計算未結算違規總數 (按天違規 + 預排違規)
-  const totalUnsettledViolations = React.useMemo(() => {
-    let total = 0;
-    profiles.forEach((p) => {
-      const userTasks = tasks.filter((t) => t.user_id === p.id);
-      if (userTasks.length === 0) return;
+  // 統一使用集中審計邏輯計算未結算違規總數 (嚴格校驗 created_at 與日曆完整天數)
+  const unsettledSummary = React.useMemo(() => {
+    return calculateUnsettledViolations(profiles, tasks, todayDateStr, dailyRoutines);
+  }, [profiles, tasks, todayDateStr, dailyRoutines]);
 
-      const distinctDates = Array.from(new Set(userTasks.map((t) => t.target_date)));
-      distinctDates.forEach((dateStr) => {
-        // 僅統計過去已截止日期 (dateStr < todayDateStr)，今日進行中不提前記為違規
-        if (dateStr >= todayDateStr) {
-          return;
-        }
-
-        const dayTasks = userTasks.filter(
-          (t) => t.target_date === dateStr && (t.category === 'daily' || t.category === 'routine')
-        );
-        if (dayTasks.some((t) => !t.is_completed && !t.is_skipped)) {
-          total += 1;
-        }
-
-        const [y, m, d] = dateStr.split('-').map(Number);
-        const nextDate = new Date(y, m - 1, d + 1);
-        const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
-        const nextDayPlans = userTasks.filter((t) => t.target_date === nextDateStr && t.category === 'daily');
-        if (nextDayPlans.length < 2) {
-          total += 1;
-        }
-      });
-    });
-    return total;
-  }, [tasks, profiles, todayDateStr]);
+  const totalUnsettledViolations = unsettledSummary.totalViolationsCount;
 
   // 登入 / 切換身分選擇
   const handleSelectUser = async (userId: string) => {
@@ -411,6 +391,7 @@ export const App: React.FC = () => {
                 groupSettings={groupSettings}
                 monthlyBills={monthlyBills}
                 tasks={tasks}
+                routines={dailyRoutines}
                 onUpdateGroupSettings={handleUpdateGroupSettings}
                 todayDateStr={todayDateStr}
               />

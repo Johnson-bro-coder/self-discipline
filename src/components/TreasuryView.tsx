@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Profile, GroupSettings, MonthlyBill, Task } from '../types/database';
+import React, { useState, useMemo } from 'react';
+import { Profile, GroupSettings, MonthlyBill, Task, DailyRoutine } from '../types/database';
+import { calculateUnsettledViolations } from '../lib/violationAudit';
 import {
   Landmark,
   Crown,
@@ -20,6 +21,7 @@ interface TreasuryViewProps {
   groupSettings: GroupSettings;
   monthlyBills: MonthlyBill[];
   tasks: Task[];
+  routines?: DailyRoutine[];
   onUpdateGroupSettings: (name: string, amount: number) => Promise<void>;
   todayDateStr: string;
 }
@@ -29,6 +31,7 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
   groupSettings,
   monthlyBills,
   tasks,
+  routines = [],
   onUpdateGroupSettings,
   todayDateStr,
 }) => {
@@ -51,95 +54,14 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({
   const sortedProfiles = [...profiles].sort((a, b) => b.total_paid_fine - a.total_paid_fine);
 
   // ---------------------------------------------------------------------------
-  // 2. 修正罰金計算規則 (Requirement 3):
-  //    - 當日任務以及常駐每日必做有任一個沒完成（無論幾個）該日均只罰 100 元
-  //    - 明日預排序列沒在規定時間內排完 (不足 2 項) 也是罰 100 元
+  // 2. 嚴格防洗白與完整補齊的未結算違規審計 (使用集中算法)
   // ---------------------------------------------------------------------------
-  const currentMonthUnsettledStats = profiles.map((p) => {
-    const userTasks = tasks.filter((t) => t.user_id === p.id);
-    
-    // 若該成員完全無任何任務，直接歸零
-    if (userTasks.length === 0) {
-      return {
-        profile: p,
-        taskFailedDaysCount: 0,
-        preplanFailedDaysCount: 0,
-        totalViolations: 0,
-        estimatedFine: 0,
-        todayTotalCount: 0,
-        todayUnfinishedCount: 0,
-        todayPreplanCount: 0,
-      };
-    }
+  const unsettledSummary = useMemo(() => {
+    return calculateUnsettledViolations(profiles, tasks, todayDateStr, routines);
+  }, [profiles, tasks, todayDateStr, routines]);
 
-    // 取出所有已有任務的日期
-    const distinctDates = Array.from(
-      new Set(userTasks.map((t) => t.target_date))
-    ).sort();
-
-    let taskFailedDaysCount = 0;
-    let preplanFailedDaysCount = 0;
-
-    // 正式帳單罰款：僅結算「已過去之歷史日期（dateStr < todayDateStr）」
-    // 今日仍在進行中（午夜 23:59 截止倒數），白天絕不提前判處違規扣款！
-    distinctDates.forEach((dateStr) => {
-      // 排除今日與未來日期
-      if (dateStr >= todayDateStr) {
-        return;
-      }
-
-      // A. 任務未完成天數檢查：該天只要有任一項 daily 或 routine 未打卡且未豁免即違規
-      const dayTasks = userTasks.filter(
-        (t) => t.target_date === dateStr && (t.category === 'daily' || t.category === 'routine')
-      );
-      if (dayTasks.length > 0) {
-        const hasUnfinished = dayTasks.some((t) => !t.is_completed && !t.is_skipped);
-        if (hasUnfinished) {
-          taskFailedDaysCount += 1;
-        }
-      }
-
-      // B. 明日預排檢查：若是過去的日期，檢查針對隔天是否有 >= 2 項 daily 預排
-      const [y, m, d] = dateStr.split('-').map(Number);
-      const nextDate = new Date(y, m - 1, d + 1);
-      const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
-      const nextDayPlans = userTasks.filter(
-        (t) => t.target_date === nextDateStr && t.category === 'daily'
-      );
-      if (nextDayPlans.length < 2) {
-        preplanFailedDaysCount += 1;
-      }
-    });
-
-    // 今日即時進行中狀態（用於畫面上顯示「進行中提醒」，不提前算入次月 1 號帳單）
-    const todayTasks = userTasks.filter(
-      (t) => t.target_date === todayDateStr && (t.category === 'daily' || t.category === 'routine')
-    );
-    const todayUnfinishedCount = todayTasks.filter((t) => !t.is_completed && !t.is_skipped).length;
-    const tomorrowTasks = userTasks.filter(
-      (t) => t.category === 'daily' && t.target_date > todayDateStr
-    );
-    const todayPreplanCount = tomorrowTasks.length;
-
-    const totalViolations = taskFailedDaysCount + preplanFailedDaysCount;
-    const estimatedFine = totalViolations * 100;
-
-    return {
-      profile: p,
-      taskFailedDaysCount,
-      preplanFailedDaysCount,
-      totalViolations,
-      estimatedFine,
-      todayTotalCount: todayTasks.length,
-      todayUnfinishedCount,
-      todayPreplanCount,
-    };
-  });
-
-  const totalEstimatedUnsettledFine = currentMonthUnsettledStats.reduce(
-    (sum, item) => sum + item.estimatedFine,
-    0
-  );
+  const currentMonthUnsettledStats = unsettledSummary.userStats;
+  const totalEstimatedUnsettledFine = unsettledSummary.totalEstimatedFine;
 
   const handleSaveGoal = async () => {
     if (!editGoalName.trim() || editGoalAmount <= 0) return;
